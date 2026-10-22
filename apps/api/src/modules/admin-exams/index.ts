@@ -339,7 +339,7 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
         status: attempt.status as any,
         answeredCount: Number(ansInfo?.answeredCount || 0),
         totalQuestions: exam.questionsPerStudent,
-        lastSavedAt: ansInfo?.lastSavedAt ? ansInfo.lastSavedAt.toISOString() : undefined,
+        lastSavedAt: ansInfo?.lastSavedAt ? new Date(ansInfo.lastSavedAt).toISOString() : undefined,
         tabSwitches: attempt.tabSwitches || 0,
         deadlineAt: attempt.deadlineAt.toISOString(),
         attemptId: attempt.id
