@@ -344,7 +344,7 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
     if (!attempt) throw new AppError(404, 'NOT_FOUND', 'Attempt not found');
 
-    if (attempt.status !== 'submitted') {
+    if (attempt.status === 'in_progress') {
       await db.update(schema.attempts)
         .set({
           status: 'submitted',

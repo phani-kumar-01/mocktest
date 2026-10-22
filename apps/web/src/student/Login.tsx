@@ -52,7 +52,7 @@ export default function StudentLogin({ onSuccess }: LoginProps) {
               required
               value={rollNo}
               onChange={(e) => setRollNo(e.target.value)}
-              placeholder="e.g. CS21001"
+              placeholder="Enter Roll Number"
               className="w-full px-3 py-2 border border-black rounded focus:outline-none focus:ring-1 focus:ring-black font-mono text-black"
             />
           </div>

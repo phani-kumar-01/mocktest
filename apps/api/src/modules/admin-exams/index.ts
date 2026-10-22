@@ -524,6 +524,25 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     return reply.send({ success: true, message: `Password reset to default roll number (${student.rollNo})` });
   });
+
+  // 15. DELETE /api/admin/students/:id (soft delete)
+  fastify.delete('/admin/students/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const [student] = await db.select().from(schema.students).where(eq(schema.students.id, id)).limit(1);
+    if (!student) throw new AppError(404, 'NOT_FOUND', 'Student not found');
+
+    await db.update(schema.students)
+      .set({ active: false })
+      .where(eq(schema.students.id, id));
+
+    await db.insert(schema.auditLog).values({
+      actor: request.sessionUser!.username || request.sessionUser!.name,
+      action: 'STUDENT_DEACTIVATE',
+      details: { studentId: id, rollNo: student.rollNo }
+    });
+
+    return reply.status(204).send();
+  });
 };
 
 export const autoPrefix = '/api';

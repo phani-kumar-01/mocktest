@@ -172,6 +172,7 @@ export const useStudentExamStore = create<StudentExamStore>((set, get) => ({
     set({ remainingSeconds: remaining });
 
     if (remaining === 0 && get().status === 'in_progress') {
+      set({ status: 'submitting' }); // guard against multiple calls
       get().submitExam();
     }
   },
@@ -195,15 +196,19 @@ export const useStudentExamStore = create<StudentExamStore>((set, get) => ({
     api.post(`/student/attempts/${attemptId}/tab-event`).catch(() => {});
   },
 
-  resetExam: () => set({
-    attemptId: null,
-    status: 'idle',
-    questions: [],
-    currentIndex: 0,
-    answers: {},
-    marked: new Set(),
-    deadlineAt: null,
-    remainingSeconds: 0,
-    saveStatus: 'saved'
-  })
+  resetExam: () => {
+    localStorage.removeItem('nptel_retry_queue');
+    set({
+      attemptId: null,
+      status: 'idle',
+      questions: [],
+      currentIndex: 0,
+      answers: {},
+      marked: new Set(),
+      deadlineAt: null,
+      remainingSeconds: 0,
+      saveStatus: 'saved',
+      retryQueue: []
+    });
+  }
 }));

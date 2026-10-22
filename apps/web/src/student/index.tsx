@@ -9,7 +9,7 @@ import { AuthMeResponse, StudentAttemptResponse } from '@nptel/shared';
 
 export default function StudentApp() {
   const [activeAttemptId, setActiveAttemptId] = useState<string | null>(null);
-  const [examTitle] = useState<string>('NPTEL Mock Examination');
+  const [examTitle, setExamTitle] = useState<string>('NPTEL Mock Examination');
   const { initExam, resetExam } = useStudentExamStore();
 
   // Check auth status
@@ -21,7 +21,7 @@ export default function StudentApp() {
 
   const isAuthenticated = auth?.role === 'student' && auth.user;
 
-  const handleEnterExam = async (attemptId: string) => {
+  const handleEnterExam = async (attemptId: string, title?: string) => {
     try {
       const data: StudentAttemptResponse = await api.get(`/student/attempts/${attemptId}`);
       initExam({
@@ -32,6 +32,7 @@ export default function StudentApp() {
         deadlineAt: data.deadlineAt,
         serverTime: data.serverTime
       });
+      if (title) setExamTitle(title);
       setActiveAttemptId(attemptId);
     } catch (err: any) {
       console.error('Failed to load attempt questions:', err);
@@ -69,7 +70,7 @@ export default function StudentApp() {
   return (
     <StudentHome
       user={auth.user}
-      onEnterExam={(attId) => handleEnterExam(attId)}
+      onEnterExam={(attId, title) => handleEnterExam(attId, title)}
       onLogout={handleLogout}
     />
   );

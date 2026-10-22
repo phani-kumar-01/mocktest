@@ -5,7 +5,7 @@ import { StudentHomeResponse } from '@nptel/shared';
 
 interface HomeProps {
   user: { name: string; rollNo?: string };
-  onEnterExam: (attemptId: string) => void;
+  onEnterExam: (attemptId: string, title?: string) => void;
   onLogout: () => void;
 }
 
@@ -20,12 +20,12 @@ export default function StudentHome({ user, onEnterExam, onLogout }: HomeProps) 
     refetchInterval: 5000
   });
 
-  const handleStartExam = async (examId: string) => {
+  const handleStartExam = async (examId: string, title?: string) => {
     setStarting(true);
     setStartError(null);
     try {
       const res = await api.post(`/student/exams/${examId}/start`);
-      onEnterExam(res.attemptId);
+      onEnterExam(res.attemptId, title);
     } catch (err: any) {
       setStartError(err.message || 'Failed to start exam');
     } finally {
@@ -81,7 +81,7 @@ export default function StudentHome({ user, onEnterExam, onLogout }: HomeProps) 
 
             {homeState.exam.canEnter ? (
               <button
-                onClick={() => handleStartExam(homeState.exam!.id)}
+                onClick={() => handleStartExam(homeState.exam!.id, homeState.exam!.title)}
                 disabled={starting}
                 className="w-full bg-black hover:bg-neutral-800 disabled:bg-neutral-400 text-white font-bold py-3.5 px-6 rounded text-lg border border-black uppercase tracking-wider transition-all"
               >

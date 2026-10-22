@@ -9,7 +9,7 @@ export default function StudentsView() {
   const [rollNo, setRollNo] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [batch, setBatch] = useState('2026');
+  const [batch, setBatch] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importResult, setImportResult] = useState<any | null>(null);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -41,6 +41,17 @@ export default function StudentsView() {
       setStatusMsg(`Password for ${roll} reset to default`);
     } catch (err: any) {
       alert(err.message || 'Failed to reset password');
+    }
+  };
+
+  const handleDeactivate = async (id: string, roll: string) => {
+    if (!confirm(`Deactivate student ${roll}? They will no longer be able to log in.`)) return;
+    try {
+      await api.delete(`/admin/students/${id}`);
+      setStatusMsg(`Student ${roll} deactivated successfully`);
+      refetch();
+    } catch (err: any) {
+      alert(err.message || 'Failed to deactivate student');
     }
   };
 
@@ -132,12 +143,18 @@ export default function StudentsView() {
                       {s.batch}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-right">
+                  <td className="py-3 px-4 text-right space-x-3">
                     <button
                       onClick={() => handleResetPassword(s.id, s.rollNo)}
                       className="text-xs text-black hover:text-neutral-600 font-bold underline"
                     >
                       Reset Password
+                    </button>
+                    <button
+                      onClick={() => handleDeactivate(s.id, s.rollNo)}
+                      className="text-xs text-red-700 hover:text-red-900 font-bold underline"
+                    >
+                      Deactivate
                     </button>
                   </td>
                 </tr>
@@ -154,7 +171,7 @@ export default function StudentsView() {
             <h3 className="text-lg font-bold text-black uppercase">Add New Student</h3>
             <div>
               <label className="block text-xs font-bold uppercase text-black mb-1">Roll Number</label>
-              <input required value={rollNo} onChange={e => setRollNo(e.target.value)} placeholder="e.g. CS21045" className="w-full px-3 py-2 border border-black rounded text-sm text-black" />
+              <input required value={rollNo} onChange={e => setRollNo(e.target.value)} placeholder="Enter Roll Number" className="w-full px-3 py-2 border border-black rounded text-sm text-black" />
             </div>
             <div>
               <label className="block text-xs font-bold uppercase text-black mb-1">Name</label>

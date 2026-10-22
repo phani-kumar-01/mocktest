@@ -21,41 +21,6 @@ async function seed() {
     console.log('Created default admin: admin / admin123');
   }
 
-  // 2. 300 Fake Students (CS21001 to CS21300)
-  console.log('Seeding 300 students...');
-  const existingStudents = await db.select({ count: schema.students.id }).from(schema.students);
-  if (existingStudents.length < 300) {
-    const studentsToInsert = [];
-    const firstNames = ['Aarav', 'Vivaan', 'Aditya', 'Vihaan', 'Arjun', 'Sai', 'Reyansh', 'Ayaan', 'Krishna', 'Ishaan', 'Diya', 'Saanvi', 'Ananya', 'Aadhya', 'Pari', 'Anika', 'Navya', 'Angel', 'Riya', 'Myra'];
-    const lastNames = ['Sharma', 'Verma', 'Patel', 'Reddy', 'Nair', 'Iyer', 'Gupta', 'Singh', 'Kumar', 'Joshi', 'Mehta', 'Rao', 'Das', 'Chatterjee', 'Bose'];
-
-    for (let i = 1; i <= 300; i++) {
-      const rollNo = `CS21${i.toString().padStart(3, '0')}`;
-      const firstName = firstNames[(i - 1) % firstNames.length];
-      const lastName = lastNames[(i - 1) % lastNames.length];
-      const name = `${firstName} ${lastName}`;
-      const email = `${rollNo.toLowerCase()}@college.edu`;
-      const batch = i <= 150 ? '2026-A' : '2026-B';
-      const passwordHash = bcrypt.hashSync(rollNo, 8);
-
-      studentsToInsert.push({
-        rollNo,
-        name,
-        email,
-        batch,
-        passwordHash,
-        active: true
-      });
-    }
-
-    // Insert in batches of 50
-    for (let j = 0; j < studentsToInsert.length; j += 50) {
-      const chunk = studentsToInsert.slice(j, j + 50);
-      await db.insert(schema.students).values(chunk).onConflictDoNothing();
-    }
-    console.log('300 students seeded successfully.');
-  }
-
   // 3. Subject: Python Programming
   let [subject] = await db.select().from(schema.subjects).where(eq(schema.subjects.name, 'Python Programming')).limit(1);
   if (!subject) {
@@ -178,7 +143,6 @@ print(output)`;
   console.log('------------------------------------------------------------');
   console.log('SEED COMPLETE!');
   console.log('Admin Login: admin / admin123');
-  console.log('Student Logins: CS21001 .. CS21300 (Password = Roll Number)');
   console.log('------------------------------------------------------------');
 }
 

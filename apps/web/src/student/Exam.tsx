@@ -135,7 +135,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
                 : 'bg-neutral-100 text-black'
             }`}
           >
-            <span>⏱</span>
+            <span className="text-xs font-bold">Time Left :</span>
             <span>{formatSecondsToTime(remainingSeconds)}</span>
           </div>
 
