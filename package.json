@@ -1,0 +1,22 @@
+{
+  "name": "nptel-mock-exam",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter \"@nptel/*\" build",
+    "test": "vitest run",
+    "typecheck": "pnpm --filter \"@nptel/*\" typecheck",
+    "dev:api": "pnpm --filter @nptel/api dev",
+    "dev:worker": "pnpm --filter @nptel/api dev:worker",
+    "dev:web": "pnpm --filter @nptel/web dev",
+    "db:generate": "pnpm --filter @nptel/api db:generate",
+    "db:migrate": "pnpm --filter @nptel/api db:migrate",
+    "seed": "pnpm --filter @nptel/api seed"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.2",
+    "vitest": "^2.0.0"
+  }
+}
