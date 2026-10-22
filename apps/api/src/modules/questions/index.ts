@@ -69,11 +69,6 @@ const questionsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => 
     ];
 
     sheet1.getRow(1).font = { bold: true };
-    sheet1.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFE2E8F0' }
-    };
 
     // Add example rows
     sheet1.addRow({

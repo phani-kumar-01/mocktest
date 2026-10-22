@@ -61,24 +61,24 @@ export default function StudentsView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-white text-black">
       {/* Header & Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Student Directory</h1>
-          <p className="text-slate-500 text-sm">Manage enrolled students and credentials</p>
+          <h1 className="text-2xl font-bold uppercase tracking-tight text-black">Student Directory</h1>
+          <p className="text-neutral-600 text-sm">Manage enrolled students and credentials</p>
         </div>
 
         <div className="flex items-center space-x-3">
           <button
             onClick={() => { setImportResult(null); setImportFile(null); setShowImportModal(true); }}
-            className="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg text-sm hover:bg-slate-50 shadow-sm"
+            className="px-4 py-2 bg-white border border-black text-black font-bold rounded text-sm hover:bg-neutral-100 transition-colors"
           >
             📥 Import CSV / XLSX
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-sky-600 text-white font-bold rounded-lg text-sm hover:bg-sky-700 shadow-sm"
+            className="px-4 py-2 bg-black text-white font-bold rounded text-sm hover:bg-neutral-800 border border-black transition-colors"
           >
             + Add Student
           </button>
@@ -86,28 +86,28 @@ export default function StudentsView() {
       </div>
 
       {statusMsg && (
-        <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg border border-emerald-200 text-sm flex justify-between">
+        <div className="bg-neutral-100 text-black p-3 rounded border border-black text-sm flex justify-between font-bold">
           <span>{statusMsg}</span>
-          <button onClick={() => setStatusMsg(null)} className="font-bold">×</button>
+          <button onClick={() => setStatusMsg(null)}>✕</button>
         </div>
       )}
 
       {/* Search Bar */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+      <div className="bg-white p-4 rounded border border-black flex items-center justify-between">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by roll number or name..."
-          className="w-full max-w-md px-3.5 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+          className="w-full max-w-md px-3.5 py-2 border border-black rounded text-sm text-black focus:outline-none focus:ring-1 focus:ring-black"
         />
-        <span className="text-xs text-slate-500 font-medium">Total: {students.length} students</span>
+        <span className="text-xs text-neutral-600 font-bold uppercase">Total: {students.length} students</span>
       </div>
 
       {/* Students Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left text-sm text-slate-700">
-          <thead className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
+      <div className="bg-white rounded border border-black overflow-hidden">
+        <table className="w-full text-left text-sm text-black">
+          <thead className="bg-neutral-100 border-b border-black text-xs font-bold text-black uppercase">
             <tr>
               <th className="py-3 px-4">Roll Number</th>
               <th className="py-3 px-4">Student Name</th>
@@ -116,26 +116,26 @@ export default function StudentsView() {
               <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y border-b border-black">
             {isLoading ? (
-              <tr><td colSpan={5} className="py-8 text-center text-slate-400">Loading directory...</td></tr>
+              <tr><td colSpan={5} className="py-8 text-center text-neutral-500">Loading directory...</td></tr>
             ) : students.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-slate-400">No students found.</td></tr>
+              <tr><td colSpan={5} className="py-8 text-center text-neutral-500">No students found.</td></tr>
             ) : (
               students.map((s: any) => (
-                <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="py-3 px-4 font-mono font-semibold text-slate-900">{s.rollNo}</td>
-                  <td className="py-3 px-4 font-medium text-slate-800">{s.name}</td>
-                  <td className="py-3 px-4 text-slate-500">{s.email || '—'}</td>
+                <tr key={s.id} className="hover:bg-neutral-50 transition-colors">
+                  <td className="py-3 px-4 font-mono font-bold text-black">{s.rollNo}</td>
+                  <td className="py-3 px-4 font-medium text-black">{s.name}</td>
+                  <td className="py-3 px-4 text-neutral-600">{s.email || '—'}</td>
                   <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-600 font-mono">
+                    <span className="px-2 py-0.5 bg-neutral-100 border border-neutral-400 rounded text-xs text-black font-mono">
                       {s.batch}
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right">
                     <button
                       onClick={() => handleResetPassword(s.id, s.rollNo)}
-                      className="text-xs text-sky-600 hover:text-sky-800 font-medium underline"
+                      className="text-xs text-black hover:text-neutral-600 font-bold underline"
                     >
                       Reset Password
                     </button>
@@ -149,28 +149,28 @@ export default function StudentsView() {
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleCreate} className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-800">Add New Student</h3>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleCreate} className="bg-white rounded max-w-md w-full border-2 border-black p-6 space-y-4">
+            <h3 className="text-lg font-bold text-black uppercase">Add New Student</h3>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Roll Number</label>
-              <input required value={rollNo} onChange={e => setRollNo(e.target.value)} placeholder="e.g. CS21045" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              <label className="block text-xs font-bold uppercase text-black mb-1">Roll Number</label>
+              <input required value={rollNo} onChange={e => setRollNo(e.target.value)} placeholder="e.g. CS21045" className="w-full px-3 py-2 border border-black rounded text-sm text-black" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Name</label>
-              <input required value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              <label className="block text-xs font-bold uppercase text-black mb-1">Name</label>
+              <input required value={name} onChange={e => setName(e.target.value)} placeholder="Full Name" className="w-full px-3 py-2 border border-black rounded text-sm text-black" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="student@college.edu" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              <label className="block text-xs font-bold uppercase text-black mb-1">Email</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="student@college.edu" className="w-full px-3 py-2 border border-black rounded text-sm text-black" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Batch / Section</label>
-              <input value={batch} onChange={e => setBatch(e.target.value)} placeholder="2026" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              <label className="block text-xs font-bold uppercase text-black mb-1">Batch / Section</label>
+              <input value={batch} onChange={e => setBatch(e.target.value)} placeholder="2026" className="w-full px-3 py-2 border border-black rounded text-sm text-black" />
             </div>
-            <div className="flex justify-end space-x-3 pt-3 border-t">
-              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-slate-600">Cancel</button>
-              <button type="submit" className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-bold">Save Student</button>
+            <div className="flex justify-end space-x-3 pt-3 border-t border-black">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm text-black border border-neutral-300 rounded hover:bg-neutral-100">Cancel</button>
+              <button type="submit" className="px-4 py-2 bg-black text-white rounded text-sm font-bold border border-black hover:bg-neutral-800">Save Student</button>
             </div>
           </form>
         </div>
@@ -178,11 +178,11 @@ export default function StudentsView() {
 
       {/* Import Modal */}
       {showImportModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 p-6 space-y-4">
-            <h3 className="text-lg font-bold text-slate-800">Import Students from CSV / XLSX</h3>
-            <p className="text-xs text-slate-500">
-              Columns required: <code>roll_no, name, email, batch</code>. First row is header.
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded max-w-lg w-full border-2 border-black p-6 space-y-4">
+            <h3 className="text-lg font-bold text-black uppercase">Import Students from CSV / XLSX</h3>
+            <p className="text-xs text-neutral-600">
+              Columns required: <code className="font-bold">roll_no, name, email, batch</code>. First row is header.
             </p>
 
             <form onSubmit={handleImport} className="space-y-4">
@@ -191,22 +191,22 @@ export default function StudentsView() {
                 accept=".csv, .xlsx"
                 required
                 onChange={e => setImportFile(e.target.files?.[0] || null)}
-                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                className="w-full text-xs text-black file:mr-4 file:py-2 file:px-4 file:rounded file:border file:border-black file:text-xs file:font-bold file:bg-neutral-100 file:text-black hover:file:bg-neutral-200 cursor-pointer"
               />
 
-              <div className="flex justify-end space-x-3 pt-2">
-                <button type="button" onClick={() => setShowImportModal(false)} className="px-4 py-2 text-sm text-slate-600">Close</button>
-                <button type="submit" className="px-4 py-2 bg-sky-600 text-white rounded-lg text-sm font-bold">Upload & Import</button>
+              <div className="flex justify-end space-x-3 pt-2 border-t border-black">
+                <button type="button" onClick={() => setShowImportModal(false)} className="px-4 py-2 text-sm text-black border border-neutral-300 rounded hover:bg-neutral-100">Close</button>
+                <button type="submit" className="px-4 py-2 bg-black text-white rounded text-sm font-bold border border-black hover:bg-neutral-800">Upload & Import</button>
               </div>
             </form>
 
             {importResult && (
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 text-sm">
-                <p className="font-bold text-slate-800">Import Summary:</p>
-                <p className="text-emerald-700">✓ Created: {importResult.created} students</p>
-                <p className="text-sky-700">↻ Updated: {importResult.updated} students</p>
+              <div className="bg-neutral-50 p-4 rounded border border-black space-y-2 text-sm">
+                <p className="font-bold text-black uppercase">Import Summary:</p>
+                <p className="text-black font-semibold">Created: {importResult.created} students</p>
+                <p className="text-black font-semibold">Updated: {importResult.updated} students</p>
                 {importResult.errors?.length > 0 && (
-                  <p className="text-red-600">⚠ Errors: {importResult.errors.length} rows</p>
+                  <p className="text-black font-bold">Errors: {importResult.errors.length} rows</p>
                 )}
               </div>
             )}

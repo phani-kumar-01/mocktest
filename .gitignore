@@ -9,3 +9,5 @@ drizzle/meta/
 coverage/
 .worktrees/
 ../wt-*
+.pgdata/
+apps/api/.pgdata/

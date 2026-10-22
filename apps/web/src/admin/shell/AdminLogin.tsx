@@ -31,22 +31,22 @@ export default function AdminLogin({ onSuccess }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center px-4">
-      <div className="max-w-md w-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
-        <div className="bg-sky-600 py-6 px-8 text-center text-white">
-          <h1 className="text-xl font-bold tracking-tight">Admin Console</h1>
-          <p className="text-sky-100 text-xs mt-1">NPTEL Mock Examination System</p>
+    <div className="min-h-screen bg-neutral-100 flex flex-col justify-center items-center px-4 text-black">
+      <div className="max-w-md w-full bg-white rounded border-2 border-black overflow-hidden shadow-none">
+        <div className="bg-black py-6 px-8 text-center text-white">
+          <h1 className="text-xl font-bold tracking-tight uppercase">Admin Console</h1>
+          <p className="text-neutral-400 text-xs mt-1">NPTEL Mock Examination System</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-5">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
+            <div className="bg-neutral-100 border-2 border-black text-black px-4 py-3 rounded text-sm font-bold">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">
+            <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1">
               Username
             </label>
             <input
@@ -55,12 +55,12 @@ export default function AdminLogin({ onSuccess }: LoginProps) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="e.g. admin"
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-white font-mono text-sm"
+              className="w-full px-3.5 py-2.5 bg-white border border-black rounded focus:outline-none focus:ring-1 focus:ring-black text-black font-mono text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1">
+            <label className="block text-xs font-bold uppercase tracking-wider text-black mb-1">
               Password
             </label>
             <input
@@ -69,14 +69,14 @@ export default function AdminLogin({ onSuccess }: LoginProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-white text-sm"
+              className="w-full px-3.5 py-2.5 bg-white border border-black rounded focus:outline-none focus:ring-1 focus:ring-black text-black text-sm"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-sky-500 hover:bg-sky-600 disabled:bg-sky-800 text-white font-bold py-2.5 rounded-lg transition-colors shadow-lg shadow-sky-500/20 text-sm"
+            className="w-full bg-black hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-bold py-2.5 rounded transition-colors text-sm border border-black uppercase tracking-wider"
           >
             {loading ? 'Authenticating...' : 'Sign In as Administrator'}
           </button>

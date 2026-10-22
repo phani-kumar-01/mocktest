@@ -19,12 +19,14 @@ describe('Admin Exams & Control Module (Agent C)', () => {
 
     // Create admin & login
     const adminPass = await bcrypt.hash('adminpass', 8);
-    await db.delete(schema.admins).where(eq(schema.admins.username, 'exam_admin'));
-    await db.insert(schema.admins).values({
-      username: 'exam_admin',
-      name: 'Exam Admin',
-      passwordHash: adminPass
-    });
+    const existingAdmin = await db.select().from(schema.admins).where(eq(schema.admins.username, 'exam_admin'));
+    if (existingAdmin.length === 0) {
+      await db.insert(schema.admins).values({
+        username: 'exam_admin',
+        name: 'Exam Admin',
+        passwordHash: adminPass
+      });
+    }
 
     const loginRes = await app.inject({
       method: 'POST',

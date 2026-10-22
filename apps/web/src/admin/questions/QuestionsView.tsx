@@ -45,6 +45,22 @@ export default function QuestionsView() {
     enabled: !!selectedSubjectId
   });
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await api.get('/admin/questions/template.xlsx');
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'questions_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('Failed to download template: ' + (err.message || ''));
+    }
+  };
+
   const handleCreateSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -105,26 +121,26 @@ export default function QuestionsView() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 bg-white text-black">
       {/* Top Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Question Bank</h1>
-          <p className="text-slate-500 text-sm">Upload Excel spreadsheets and organize question pools</p>
+          <h1 className="text-2xl font-bold uppercase tracking-tight text-black">Question Bank</h1>
+          <p className="text-neutral-600 text-sm">Upload Excel spreadsheets and organize question pools</p>
         </div>
 
         <div className="flex items-center space-x-3">
-          <a
-            href="/api/admin/questions/template.xlsx"
-            download
-            className="px-4 py-2 bg-white border border-slate-300 text-slate-700 font-medium rounded-lg text-sm hover:bg-slate-50 shadow-sm flex items-center space-x-2"
+          <button
+            type="button"
+            onClick={handleDownloadTemplate}
+            className="px-4 py-2 bg-white border border-black text-black font-bold rounded text-sm hover:bg-neutral-100 flex items-center space-x-2 transition-colors"
           >
             <span>📄</span>
             <span>Download Template</span>
-          </a>
+          </button>
           <button
             onClick={() => setShowSubjectModal(true)}
-            className="px-3.5 py-2 bg-slate-800 text-white font-medium rounded-lg text-sm hover:bg-slate-900 shadow-sm"
+            className="px-4 py-2 bg-black text-white font-bold rounded text-sm hover:bg-neutral-800 border border-black transition-colors"
           >
             + New Subject
           </button>
@@ -132,21 +148,21 @@ export default function QuestionsView() {
       </div>
 
       {statusMsg && (
-        <div className="bg-emerald-50 text-emerald-700 p-3 rounded-lg border border-emerald-200 text-sm flex justify-between">
+        <div className="bg-neutral-100 text-black p-3 rounded border border-black text-sm flex justify-between font-bold">
           <span>{statusMsg}</span>
-          <button onClick={() => setStatusMsg(null)} className="font-bold">×</button>
+          <button onClick={() => setStatusMsg(null)}>✕</button>
         </div>
       )}
 
       {/* Upload & Subject Filter Box */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+      <div className="bg-white p-6 rounded border border-black space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Subject</label>
+            <label className="block text-xs font-bold uppercase text-black mb-1">Subject</label>
             <select
               value={selectedSubjectId}
               onChange={(e) => setSelectedSubjectId(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium bg-white"
+              className="w-full px-3 py-2 border border-black rounded text-sm font-semibold bg-white text-black"
             >
               {subjects.map((s: any) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
@@ -155,19 +171,19 @@ export default function QuestionsView() {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Upload Questions (.xlsx)</label>
+            <label className="block text-xs font-bold uppercase text-black mb-1">Upload Questions (.xlsx)</label>
             <form onSubmit={handleDryRunUpload} className="flex items-center space-x-3">
               <input
                 type="file"
                 accept=".xlsx"
                 required
                 onChange={e => setUploadFile(e.target.files?.[0] || null)}
-                className="flex-1 text-sm text-slate-500 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
+                className="flex-1 text-xs text-black file:mr-4 file:py-1.5 file:px-3 file:rounded file:border file:border-black file:text-xs file:font-bold file:bg-neutral-100 file:text-black hover:file:bg-neutral-200 cursor-pointer"
               />
               <button
                 type="submit"
                 disabled={uploading || !uploadFile}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-300 text-white font-bold text-sm rounded-lg shadow-sm"
+                className="px-4 py-2 bg-black hover:bg-neutral-800 disabled:bg-neutral-300 text-white font-bold text-sm rounded border border-black transition-colors"
               >
                 {uploading ? 'Validating...' : 'Validate Excel'}
               </button>
@@ -177,19 +193,19 @@ export default function QuestionsView() {
 
         {/* Upload Dry-Run Preview Modal/Box */}
         {uploadPreview && (
-          <div className="mt-4 p-5 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+          <div className="mt-4 p-5 bg-neutral-50 rounded border-2 border-black space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-bold text-slate-900 text-base">File Validation Summary</h4>
-                <p className="text-xs text-slate-500">Review results before committing to database.</p>
+                <h4 className="font-bold text-black text-base uppercase">File Validation Summary</h4>
+                <p className="text-xs text-neutral-600">Review results before committing to database.</p>
               </div>
 
               <div className="flex items-center space-x-3">
-                <span className="text-sm font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                <span className="text-sm font-bold text-black bg-white px-3 py-1 rounded border border-black">
                   {uploadPreview.validCount} Valid Questions
                 </span>
                 {uploadPreview.errorsCount > 0 && (
-                  <span className="text-sm font-bold text-red-600 bg-red-50 px-3 py-1 rounded-full border border-red-200">
+                  <span className="text-sm font-bold text-black bg-neutral-200 px-3 py-1 rounded border border-black">
                     {uploadPreview.errorsCount} Errors
                   </span>
                 )}
@@ -197,7 +213,7 @@ export default function QuestionsView() {
                   type="button"
                   onClick={handleConfirmImport}
                   disabled={confirming || uploadPreview.validCount === 0}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold text-sm rounded-lg shadow"
+                  className="px-5 py-2 bg-black hover:bg-neutral-800 disabled:bg-neutral-300 text-white font-bold text-sm rounded border border-black transition-colors"
                 >
                   {confirming ? 'Importing...' : 'Confirm & Save All'}
                 </button>
@@ -205,9 +221,9 @@ export default function QuestionsView() {
             </div>
 
             {uploadPreview.errors?.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-40 overflow-y-auto">
-                <p className="text-xs font-bold text-red-800 mb-1">Errors detected in file:</p>
-                <ul className="text-xs text-red-700 space-y-1 list-disc list-inside">
+              <div className="bg-white border border-black rounded p-3 max-h-40 overflow-y-auto">
+                <p className="text-xs font-bold text-black mb-1 uppercase">Errors detected in file:</p>
+                <ul className="text-xs text-black space-y-1 list-disc list-inside">
                   {uploadPreview.errors.map((err: any, i: number) => (
                     <li key={i}>Row {err.row}: [{err.field}] {err.message}</li>
                   ))}
@@ -217,9 +233,9 @@ export default function QuestionsView() {
 
             {/* First 20 Preview Table */}
             {uploadPreview.preview?.length > 0 && (
-              <div className="overflow-x-auto max-h-60 rounded border border-slate-200 bg-white">
-                <table className="w-full text-xs text-left text-slate-700">
-                  <thead className="bg-slate-100 text-slate-600 font-semibold border-b">
+              <div className="overflow-x-auto max-h-60 rounded border border-black bg-white">
+                <table className="w-full text-xs text-left text-black">
+                  <thead className="bg-neutral-100 text-black font-bold border-b border-black">
                     <tr>
                       <th className="p-2">Topic</th>
                       <th className="p-2">Question</th>
@@ -227,13 +243,13 @@ export default function QuestionsView() {
                       <th className="p-2">Correct</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y border-b border-black">
                     {uploadPreview.preview.map((row: any, i: number) => (
                       <tr key={i}>
-                        <td className="p-2 font-medium">{row.topic}</td>
+                        <td className="p-2 font-bold">{row.topic}</td>
                         <td className="p-2 max-w-xs truncate">{row.question}</td>
                         <td className="p-2">A: {row.option_a?.slice(0, 15)}...</td>
-                        <td className="p-2 font-mono font-bold text-emerald-600 uppercase">{row.correct}</td>
+                        <td className="p-2 font-mono font-bold uppercase">{row.correct}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -245,19 +261,19 @@ export default function QuestionsView() {
       </div>
 
       {/* Filter and Question Bank Listing */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-white p-4 rounded border border-black flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center space-x-3 flex-1">
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search questions by text..."
-            className="w-full max-w-sm px-3.5 py-1.5 border border-slate-300 rounded-lg text-sm"
+            className="w-full max-w-sm px-3.5 py-1.5 border border-black rounded text-sm text-black"
           />
           <select
             value={selectedTopic}
             onChange={e => setSelectedTopic(e.target.value)}
-            className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm bg-white"
+            className="px-3 py-1.5 border border-black rounded text-sm bg-white text-black"
           >
             <option value="">All Topics ({topics.length})</option>
             {topics.map((t: any) => (
@@ -265,46 +281,46 @@ export default function QuestionsView() {
             ))}
           </select>
         </div>
-        <span className="text-xs text-slate-500 font-medium">Total: {qData?.total || 0} questions</span>
+        <span className="text-xs text-neutral-600 font-bold uppercase">Total: {qData?.total || 0} questions</span>
       </div>
 
       {/* Questions List */}
       <div className="space-y-3">
         {isLoading ? (
-          <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+          <div className="p-8 text-center text-neutral-500 bg-white rounded border border-black">
             Loading questions...
           </div>
         ) : qData?.questions?.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+          <div className="p-8 text-center text-neutral-500 bg-white rounded border border-black">
             No questions found in this subject/topic.
           </div>
         ) : (
           qData?.questions?.map((q: any, i: number) => (
-            <div key={q.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex items-start justify-between gap-4">
+            <div key={q.id} className="bg-white p-5 rounded border border-black flex items-start justify-between gap-4">
               <div className="space-y-2 flex-1">
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-full border border-sky-100">
+                  <span className="text-xs font-bold text-black bg-neutral-100 px-2.5 py-0.5 rounded border border-black uppercase">
                     {q.topic} {q.subtopic ? `→ ${q.subtopic}` : ''}
                   </span>
-                  <span className="text-xs font-mono text-slate-400">Q#{i + 1}</span>
+                  <span className="text-xs font-mono text-neutral-500">Q#{i + 1}</span>
                 </div>
-                <p className="text-sm text-slate-800 font-medium whitespace-pre-wrap">{q.bodyMd}</p>
+                <p className="text-sm text-black font-medium whitespace-pre-wrap">{q.bodyMd}</p>
                 {q.codeSnippet && (
-                  <pre className="bg-slate-900 text-slate-100 p-3 rounded-lg text-xs font-mono overflow-x-auto max-h-32">
+                  <pre className="bg-black text-white p-3 rounded text-xs font-mono overflow-x-auto max-h-32 border border-black">
                     <code>{q.codeSnippet}</code>
                   </pre>
                 )}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-                  <div className={`p-2 rounded border ${q.correct === 'a' ? 'border-emerald-500 bg-emerald-50 font-bold' : 'border-slate-100 bg-slate-50'}`}>
+                  <div className={`p-2 rounded border ${q.correct === 'a' ? 'border-2 border-black bg-black text-white font-bold' : 'border-neutral-300 bg-neutral-50 text-black'}`}>
                     A: {q.optionA}
                   </div>
-                  <div className={`p-2 rounded border ${q.correct === 'b' ? 'border-emerald-500 bg-emerald-50 font-bold' : 'border-slate-100 bg-slate-50'}`}>
+                  <div className={`p-2 rounded border ${q.correct === 'b' ? 'border-2 border-black bg-black text-white font-bold' : 'border-neutral-300 bg-neutral-50 text-black'}`}>
                     B: {q.optionB}
                   </div>
-                  <div className={`p-2 rounded border ${q.correct === 'c' ? 'border-emerald-500 bg-emerald-50 font-bold' : 'border-slate-100 bg-slate-50'}`}>
+                  <div className={`p-2 rounded border ${q.correct === 'c' ? 'border-2 border-black bg-black text-white font-bold' : 'border-neutral-300 bg-neutral-50 text-black'}`}>
                     C: {q.optionC}
                   </div>
-                  <div className={`p-2 rounded border ${q.correct === 'd' ? 'border-emerald-500 bg-emerald-50 font-bold' : 'border-slate-100 bg-slate-50'}`}>
+                  <div className={`p-2 rounded border ${q.correct === 'd' ? 'border-2 border-black bg-black text-white font-bold' : 'border-neutral-300 bg-neutral-50 text-black'}`}>
                     D: {q.optionD}
                   </div>
                 </div>
@@ -312,7 +328,7 @@ export default function QuestionsView() {
 
               <button
                 onClick={() => handleDeleteQuestion(q.id)}
-                className="text-xs text-red-500 hover:text-red-700 font-semibold p-1"
+                className="text-xs text-black hover:text-neutral-600 font-bold underline p-1"
               >
                 Delete
               </button>
@@ -323,22 +339,22 @@ export default function QuestionsView() {
 
       {/* Create Subject Modal */}
       {showSubjectModal && (
-        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleCreateSubject} className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-xl border">
-            <h3 className="text-lg font-bold text-slate-800">New Subject</h3>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleCreateSubject} className="bg-white rounded max-w-sm w-full p-6 space-y-4 border-2 border-black">
+            <h3 className="text-lg font-bold text-black uppercase">New Subject</h3>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Subject Name</label>
+              <label className="block text-xs font-bold uppercase text-black mb-1">Subject Name</label>
               <input
                 required
                 value={newSubjectName}
                 onChange={e => setNewSubjectName(e.target.value)}
                 placeholder="e.g. Operating Systems"
-                className="w-full px-3 py-2 border rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-black rounded text-sm text-black"
               />
             </div>
-            <div className="flex justify-end space-x-2 pt-2">
-              <button type="button" onClick={() => setShowSubjectModal(false)} className="px-3 py-1.5 text-sm text-slate-600">Cancel</button>
-              <button type="submit" className="px-4 py-1.5 bg-sky-600 text-white rounded-lg text-sm font-bold">Create</button>
+            <div className="flex justify-end space-x-2 pt-2 border-t border-black">
+              <button type="button" onClick={() => setShowSubjectModal(false)} className="px-3 py-1.5 text-sm text-black border border-neutral-300 rounded hover:bg-neutral-100">Cancel</button>
+              <button type="submit" className="px-4 py-1.5 bg-black text-white rounded text-sm font-bold border border-black hover:bg-neutral-800">Create</button>
             </div>
           </form>
         </div>

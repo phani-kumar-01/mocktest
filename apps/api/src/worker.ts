@@ -20,7 +20,7 @@ interface JobModule {
   };
 }
 
-async function startWorker() {
+export async function startWorker() {
   console.log('Starting NPTEL Exam Portal Worker process...');
   const jobsDir = path.join(__dirname, 'jobs');
   
@@ -66,4 +66,6 @@ async function startWorker() {
   console.log('Worker loop initialized.');
 }
 
-startWorker();
+if (process.argv[1]?.includes('worker')) {
+  startWorker();
+}

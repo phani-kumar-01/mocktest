@@ -31,53 +31,53 @@ export default function StudentLogin({ onSuccess }: LoginProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center px-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
-        <div className="bg-sky-700 py-6 px-8 text-center text-white">
-          <h1 className="text-2xl font-bold tracking-tight">NPTEL Mock Exam Portal</h1>
-          <p className="text-sky-100 text-sm mt-1">Student Examination Login</p>
+    <div className="min-h-screen bg-neutral-100 flex flex-col justify-center items-center px-4 text-black">
+      <div className="max-w-md w-full bg-white rounded border-2 border-black overflow-hidden shadow-none">
+        <div className="bg-black py-6 px-8 text-center text-white">
+          <h1 className="text-2xl font-bold tracking-tight uppercase">NPTEL Mock Exam Portal</h1>
+          <p className="text-neutral-400 text-sm mt-1">Student Examination Login</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-5">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+            <div className="bg-neutral-100 border-2 border-black text-black px-4 py-3 rounded text-sm font-bold">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Roll Number</label>
+            <label className="block text-sm font-bold uppercase tracking-wider text-black mb-1">Roll Number</label>
             <input
               type="text"
               required
               value={rollNo}
               onChange={(e) => setRollNo(e.target.value)}
               placeholder="e.g. CS21001"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono text-slate-800"
+              className="w-full px-3 py-2 border border-black rounded focus:outline-none focus:ring-1 focus:ring-black font-mono text-black"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Password</label>
+            <label className="block text-sm font-bold uppercase tracking-wider text-black mb-1">Password</label>
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Default is your roll number"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 text-slate-800"
+              className="w-full px-3 py-2 border border-black rounded focus:outline-none focus:ring-1 focus:ring-black text-black"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-sky-300 text-white font-medium py-2.5 rounded-lg transition-colors shadow-sm"
+            className="w-full bg-black hover:bg-neutral-800 disabled:bg-neutral-400 text-white font-bold py-2.5 rounded transition-colors border border-black uppercase tracking-wider"
           >
             {loading ? 'Authenticating...' : 'Sign In to Portal'}
           </button>
 
-          <p className="text-xs text-center text-slate-500">
+          <p className="text-xs text-center text-neutral-500">
             Default password is your Roll Number unless changed.
           </p>
         </form>

@@ -84,7 +84,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
 
   const currentQ = questions[currentIndex];
   if (!currentQ) {
-    return <div className="p-8 text-center text-slate-500">Loading questions...</div>;
+    return <div className="p-8 text-center text-neutral-500 font-bold">Loading questions...</div>;
   }
 
   const isLastQuestion = currentIndex === questions.length - 1;
@@ -94,12 +94,12 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
   const isLowTime = remainingSeconds < 300; // < 5 minutes
 
   return (
-    <div className="h-screen flex flex-col bg-slate-100 overflow-hidden select-none">
+    <div className="h-screen flex flex-col bg-neutral-100 overflow-hidden select-none text-black">
       {/* Top Navbar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm z-10">
+      <header className="bg-white border-b-2 border-black px-6 py-3 flex items-center justify-between z-10">
         <div className="flex items-center space-x-3">
-          <span className="font-bold text-slate-800 text-lg truncate max-w-md">{examTitle}</span>
-          <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded font-medium border border-slate-200">
+          <span className="font-bold text-black text-lg truncate max-w-md uppercase">{examTitle}</span>
+          <span className="text-xs bg-neutral-100 text-black px-2.5 py-1 rounded font-bold border border-black uppercase">
             Question {currentIndex + 1} of {questions.length}
           </span>
         </div>
@@ -108,20 +108,20 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2 text-xs">
             {saveStatus === 'saved' && (
-              <span className="text-emerald-600 font-medium flex items-center">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full mr-1.5"></span>
+              <span className="text-black font-bold flex items-center">
+                <span className="w-2 h-2 bg-black rounded-full mr-1.5"></span>
                 Saved ✓
               </span>
             )}
             {saveStatus === 'saving' && (
-              <span className="text-sky-600 font-medium flex items-center">
-                <span className="w-2 h-2 bg-sky-500 rounded-full mr-1.5 animate-ping"></span>
+              <span className="text-neutral-500 font-bold flex items-center">
+                <span className="w-2 h-2 bg-neutral-400 rounded-full mr-1.5"></span>
                 Saving...
               </span>
             )}
             {saveStatus === 'offline' && (
-              <span className="text-amber-600 font-medium flex items-center">
-                <span className="w-2 h-2 bg-amber-500 rounded-full mr-1.5"></span>
+              <span className="text-neutral-700 font-bold flex items-center">
+                <span className="w-2 h-2 bg-neutral-600 rounded-full mr-1.5"></span>
                 Offline (will retry)
               </span>
             )}
@@ -129,10 +129,10 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
 
           {/* Countdown timer */}
           <div
-            className={`px-4 py-1.5 rounded-lg font-mono font-bold text-base flex items-center space-x-2 border transition-colors ${
+            className={`px-4 py-1.5 rounded font-mono font-black text-base flex items-center space-x-2 border-2 border-black transition-colors ${
               isLowTime
-                ? 'bg-red-50 text-red-600 border-red-200 animate-pulse'
-                : 'bg-slate-100 text-slate-800 border-slate-300'
+                ? 'bg-black text-white'
+                : 'bg-neutral-100 text-black'
             }`}
           >
             <span>⏱</span>
@@ -141,7 +141,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
 
           <button
             onClick={() => setShowSubmitModal(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm px-4 py-2 rounded-lg transition-colors shadow-sm"
+            className="bg-black hover:bg-neutral-800 text-white font-bold text-sm px-4 py-2 rounded border border-black uppercase tracking-wider transition-colors"
           >
             Submit Test
           </button>
@@ -153,24 +153,24 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
         {/* Left / Center Area */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Scrollable Question and Options Area */}
-          <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white">
             {/* Question Text & Code Snippet */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-                <span className="font-bold text-slate-700 text-sm">Question {currentIndex + 1}</span>
+            <div className="bg-white rounded border-2 border-black p-6 flex flex-col">
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-black">
+                <span className="font-bold text-black text-sm uppercase">Question {currentIndex + 1}</span>
                 {isCurrentMarked && (
-                  <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-0.5 rounded-full">
+                  <span className="text-xs font-bold text-black bg-neutral-200 border border-black px-2.5 py-0.5 rounded uppercase">
                     Marked for Review
                   </span>
                 )}
               </div>
 
-              <div className="prose prose-slate max-w-none text-slate-800 text-base leading-relaxed">
+              <div className="prose max-w-none text-black text-base leading-relaxed">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentQ.bodyMd}</ReactMarkdown>
               </div>
 
               {currentQ.codeSnippet && (
-                <div className="mt-4 rounded-lg overflow-hidden border border-slate-800 bg-slate-900 text-slate-100 p-4 font-mono text-sm leading-relaxed whitespace-pre overflow-x-auto">
+                <div className="mt-4 rounded border-2 border-black bg-neutral-50 text-black p-4 font-mono text-sm leading-relaxed whitespace-pre overflow-x-auto">
                   <code>{currentQ.codeSnippet}</code>
                 </div>
               )}
@@ -178,7 +178,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
 
             {/* Options */}
             <div className="flex flex-col space-y-3">
-              <div className="text-sm font-semibold text-slate-700 mb-1">Select one option:</div>
+              <div className="text-sm font-bold uppercase text-black mb-1">Select one option:</div>
 
               {currentQ.options.map((opt, idx) => {
                 const label = ['A', 'B', 'C', 'D'][idx];
@@ -189,20 +189,20 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
                     key={opt.key}
                     type="button"
                     onClick={() => selectOption(currentQ.qid, opt.key)}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all flex items-start space-x-4 ${
+                    className={`w-full text-left p-4 rounded border-2 transition-all flex items-start space-x-4 ${
                       isSelected
-                        ? 'border-sky-600 bg-sky-50/70 shadow-sm'
-                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        ? 'border-black bg-neutral-100 font-semibold'
+                        : 'border-neutral-300 bg-white hover:border-black hover:bg-neutral-50'
                     }`}
                   >
                     <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-colors ${
-                        isSelected ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-colors border ${
+                        isSelected ? 'bg-black text-white border-black' : 'bg-white text-black border-black'
                       }`}
                     >
                       {label}
                     </div>
-                    <div className="text-slate-800 text-base pt-1 leading-relaxed">
+                    <div className="text-black text-base pt-1 leading-relaxed">
                       {opt.text}
                     </div>
                   </button>
@@ -213,7 +213,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
                 <button
                   type="button"
                   onClick={() => selectOption(currentQ.qid, null)}
-                  className="self-start text-xs text-slate-500 hover:text-red-600 underline pt-2"
+                  className="self-start text-xs text-neutral-600 hover:text-black font-bold underline pt-2"
                 >
                   Clear response
                 </button>
@@ -222,14 +222,14 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
           </div>
 
           {/* Bottom Action Bar */}
-          <footer className="bg-white border-t border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm z-10">
+          <footer className="bg-white border-t-2 border-black px-6 py-3 flex items-center justify-between z-10">
             <div className="flex items-center space-x-3">
               <button
                 onClick={() => toggleMarked(currentQ.qid)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+                className={`px-4 py-2 rounded text-sm font-bold border border-black uppercase transition-colors ${
                   isCurrentMarked
-                    ? 'bg-amber-100 text-amber-800 border-amber-300'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300'
+                    ? 'bg-black text-white'
+                    : 'bg-white hover:bg-neutral-100 text-black'
                 }`}
               >
                 {isCurrentMarked ? 'Unmark Review' : 'Mark for Review'}
@@ -240,7 +240,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
               <button
                 onClick={prevQuestion}
                 disabled={isFirstQuestion}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 disabled:opacity-40 text-slate-700 border border-slate-300 transition-colors"
+                className="px-4 py-2 rounded text-sm font-bold bg-white hover:bg-neutral-100 disabled:opacity-30 text-black border border-black uppercase transition-colors"
               >
                 ← Previous
               </button>
@@ -248,7 +248,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
               <button
                 onClick={nextQuestion}
                 disabled={isLastQuestion}
-                className="px-5 py-2 rounded-lg text-sm font-bold bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white transition-colors shadow-sm"
+                className="px-5 py-2 rounded text-sm font-bold bg-black hover:bg-neutral-800 disabled:opacity-30 text-white border border-black uppercase transition-colors"
               >
                 Next →
               </button>
