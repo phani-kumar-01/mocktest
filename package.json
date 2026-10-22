@@ -11,7 +11,8 @@
     "dev:web": "pnpm --filter @nptel/web dev",
     "db:generate": "pnpm --filter @nptel/api db:generate",
     "db:migrate": "pnpm --filter @nptel/api db:migrate",
-    "seed": "pnpm --filter @nptel/api seed"
+    "seed": "pnpm --filter @nptel/api seed",
+    "start": "pnpm --filter @nptel/api start"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

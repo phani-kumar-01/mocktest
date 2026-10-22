@@ -4,7 +4,9 @@ import cors from '@fastify/cors';
 import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import autoLoad from '@fastify/autoload';
+import fastifyStatic from '@fastify/static';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { errorHandler } from './lib/errors.js';
 import { db, schema } from './db/client.js';
@@ -41,6 +43,9 @@ export async function buildApp(): Promise<FastifyInstance> {
     max: parseInt(process.env.RATE_LIMIT_LOGIN_PER_MIN || '600', 10),
     timeWindow: '1 minute'
   });
+
+  // Render & Kubernetes standard health check
+  app.get('/healthz', async () => ({ status: 'ok' }));
 
   // Health check with Neon service diagnostics
   app.get('/api/health', async () => {
@@ -89,6 +94,36 @@ export async function buildApp(): Promise<FastifyInstance> {
     dir: path.join(__dirname, 'modules'),
     ignoreFilter: (p) => p.includes('.test.') || p.includes('.spec.') || p.endsWith('.d.ts')
   });
+
+  // Serve Frontend SPA in production if built
+  const candidateWebPaths = [
+    process.env.WEB_DIST_PATH,
+    path.resolve(__dirname, '../../web/dist'),
+    path.resolve(process.cwd(), 'apps/web/dist'),
+    path.resolve(process.cwd(), '../web/dist')
+  ].filter((p): p is string => Boolean(p && fs.existsSync(p)));
+
+  if (candidateWebPaths.length > 0) {
+    const webDist = candidateWebPaths[0];
+    app.log.info(`Serving static frontend build from: ${webDist}`);
+
+    await app.register(fastifyStatic, {
+      root: webDist,
+      prefix: '/'
+    });
+
+    app.setNotFoundHandler((req, reply) => {
+      if (req.raw.url && req.raw.url.startsWith('/api')) {
+        return reply.status(404).send({
+          error: {
+            code: 'NOT_FOUND',
+            message: `Route ${req.method} ${req.url} not found`
+          }
+        });
+      }
+      return reply.sendFile('index.html');
+    });
+  }
 
   return app;
 }
