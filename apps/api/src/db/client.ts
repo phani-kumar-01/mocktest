@@ -35,7 +35,8 @@ if (usePglite) {
   directSqlInstance = pglite;
 } else {
   // Runtime pooled connection (recommended by Neon best practices)
-  sqlInstance = postgres(connectionString, { max: 10, idle_timeout: 20 });
+  const poolMax = parseInt(process.env.DB_POOL_MAX || '25', 10);
+  sqlInstance = postgres(connectionString, { max: poolMax, idle_timeout: 20 });
   dbInstance = drizzlePostgres(sqlInstance, { schema });
   // Direct unpooled connection for migrations
   directSqlInstance = directConnectionString === connectionString 

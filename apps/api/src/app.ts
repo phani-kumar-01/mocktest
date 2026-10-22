@@ -41,7 +41,8 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   await app.register(rateLimit, {
     max: parseInt(process.env.RATE_LIMIT_LOGIN_PER_MIN || '600', 10),
-    timeWindow: '1 minute'
+    timeWindow: '1 minute',
+    keyGenerator: (req) => (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.ip
   });
 
   // Render & Kubernetes standard health check
