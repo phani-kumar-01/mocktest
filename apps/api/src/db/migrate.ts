@@ -1,4 +1,4 @@
-import { sql } from './client.js';
+import { sql, directSql } from './client.js';
 
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS admins (
@@ -171,12 +171,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 export async function migrate() {
   console.log('Running database migrations...');
-  if (typeof (sql as any).exec === 'function') {
-    await (sql as any).exec(SCHEMA_SQL);
-  } else if (typeof (sql as any).query === 'function') {
-    await (sql as any).query(SCHEMA_SQL);
+  const migrator = directSql || sql;
+  if (typeof (migrator as any).exec === 'function') {
+    await (migrator as any).exec(SCHEMA_SQL);
+  } else if (typeof (migrator as any).query === 'function') {
+    await (migrator as any).query(SCHEMA_SQL);
   } else {
-    await (sql as any).unsafe(SCHEMA_SQL);
+    await (migrator as any).unsafe(SCHEMA_SQL);
   }
   console.log('Database migrations completed successfully.');
 }

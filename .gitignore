@@ -11,3 +11,4 @@ coverage/
 ../wt-*
 .pgdata/
 apps/api/.pgdata/
+.neon

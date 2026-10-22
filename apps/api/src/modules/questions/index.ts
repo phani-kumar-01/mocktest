@@ -5,18 +5,19 @@ import { eq, and, sql, desc, like, or } from 'drizzle-orm';
 import { db, schema } from '../../db/client.js';
 import { requireRole } from '../../lib/session.js';
 import { AppError } from '../../lib/errors.js';
-import {
-  CreateSubjectSchema,
+import { CreateSubjectSchema,
   QuestionFilterSchema,
   ExcelQuestionRowSchema,
   ExcelQuestionRow
 } from '@nptel/shared';
+import { uploadObject, isStorageAvailable } from '../../lib/storage.js';
 
 // In-memory staging store with 30-minute TTL for dry-run preview before confirm
 interface StagedImport {
   subjectId: string;
   adminId: string;
   filename: string;
+  fileBuffer?: Buffer;
   validRows: ExcelQuestionRow[];
   expiresAt: number;
 }
@@ -223,6 +224,7 @@ const questionsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => 
       subjectId,
       adminId: request.sessionUser!.id,
       filename: data.filename,
+      fileBuffer,
       validRows,
       expiresAt: Date.now() + 30 * 60 * 1000
     });
@@ -278,6 +280,17 @@ const questionsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => 
     }));
 
     await db.insert(schema.questions).values(questionsToInsert);
+
+    // Archive original spreadsheet to Neon Object Storage
+    if (isStorageAvailable && staged.fileBuffer) {
+      uploadObject(
+        `questions/${batch.id}_${staged.filename}`,
+        staged.fileBuffer,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ).catch((err) => {
+        fastify.log.warn({ err }, 'Failed to archive spreadsheet to Neon Object Storage');
+      });
+    }
 
     return reply.send({
       batchId: batch.id,

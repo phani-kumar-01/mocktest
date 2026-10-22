@@ -1,5 +1,6 @@
 import PDFDocument from 'pdfkit';
 import { getStudentAnalysis } from '../results/index.js';
+import { uploadObject, isStorageAvailable } from '../../lib/storage.js';
 
 export async function generateStudentReportPdf(examId: string, studentId: string): Promise<Buffer> {
   const analysis = await getStudentAnalysis(examId, studentId);
@@ -9,7 +10,13 @@ export async function generateStudentReportPdf(examId: string, studentId: string
     const chunks: Buffer[] = [];
 
     doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      if (isStorageAvailable) {
+        uploadObject(`reports/${examId}/${studentId}.pdf`, buffer, 'application/pdf').catch(() => {});
+      }
+      resolve(buffer);
+    });
     doc.on('error', err => reject(err));
 
     // Header

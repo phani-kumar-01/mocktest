@@ -22,5 +22,9 @@
     "tsx": "^4.19.0",
     "typescript": "^5.5.2",
     "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.3",
+    "@neon/env": "^1.6.4"
   }
 }
