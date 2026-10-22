@@ -45,7 +45,8 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   // Autoload all modules
   await app.register(autoLoad, {
-    dir: path.join(__dirname, 'modules')
+    dir: path.join(__dirname, 'modules'),
+    ignoreFilter: (p) => p.includes('.test.') || p.includes('.spec.') || p.endsWith('.d.ts')
   });
 
   return app;

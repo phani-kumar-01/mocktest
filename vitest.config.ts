@@ -5,6 +5,11 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['**/*.test.ts', '**/*.spec.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/wt-*/**']
+    exclude: ['**/node_modules/**', '**/dist/**', '**/wt-*/**'],
+    server: {
+      deps: {
+        inline: ['@fastify/autoload']
+      }
+    }
   }
 });
