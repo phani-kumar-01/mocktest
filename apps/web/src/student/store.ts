@@ -20,6 +20,8 @@ interface StudentExamStore {
   serverOffsetMs: number;
   saveStatus: 'saved' | 'saving' | 'offline';
   retryQueue: QueueItem[];
+  securityViolations: number;
+  requireSafeBrowser: boolean;
 
   initExam: (data: {
     attemptId: string;
@@ -28,6 +30,8 @@ interface StudentExamStore {
     answers: Record<string, string | null>;
     deadlineAt: string;
     serverTime: string;
+    securityViolations?: number;
+    requireSafeBrowser?: boolean;
   }) => void;
   setCurrentIndex: (idx: number) => void;
   nextQuestion: () => void;
@@ -38,6 +42,7 @@ interface StudentExamStore {
   tickTimer: () => void;
   submitExam: () => Promise<void>;
   logTabEvent: () => void;
+  logSecurityEvent: (eventType: string, details?: string) => void;
   resetExam: () => void;
 }
 
@@ -53,6 +58,8 @@ export const useStudentExamStore = create<StudentExamStore>((set, get) => ({
   serverOffsetMs: 0,
   saveStatus: 'saved',
   retryQueue: JSON.parse(localStorage.getItem('nptel_retry_queue') || '[]'),
+  securityViolations: 0,
+  requireSafeBrowser: true,
 
   initExam: (data) => {
     const serverTimeMs = new Date(data.serverTime).getTime();
@@ -78,7 +85,9 @@ export const useStudentExamStore = create<StudentExamStore>((set, get) => ({
       deadlineAt,
       serverOffsetMs,
       remainingSeconds: diffSecs,
-      retryQueue: localQueue
+      retryQueue: localQueue,
+      securityViolations: data.securityViolations || 0,
+      requireSafeBrowser: data.requireSafeBrowser !== false
     });
 
     if (localQueue.length > 0) {
@@ -193,7 +202,15 @@ export const useStudentExamStore = create<StudentExamStore>((set, get) => ({
   logTabEvent: () => {
     const { attemptId } = get();
     if (!attemptId) return;
+    set(state => ({ securityViolations: state.securityViolations + 1 }));
     api.post(`/student/attempts/${attemptId}/tab-event`).catch(() => {});
+  },
+
+  logSecurityEvent: (eventType: string, details?: string) => {
+    const { attemptId } = get();
+    if (!attemptId) return;
+    set(state => ({ securityViolations: state.securityViolations + 1 }));
+    api.post(`/student/attempts/${attemptId}/security-event`, { eventType, details }).catch(() => {});
   },
 
   resetExam: () => {
@@ -208,7 +225,9 @@ export const useStudentExamStore = create<StudentExamStore>((set, get) => ({
       deadlineAt: null,
       remainingSeconds: 0,
       saveStatus: 'saved',
-      retryQueue: []
+      retryQueue: [],
+      securityViolations: 0,
+      requireSafeBrowser: true
     });
   }
 }));

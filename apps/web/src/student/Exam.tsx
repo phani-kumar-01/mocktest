@@ -20,16 +20,112 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
     remainingSeconds,
     saveStatus,
     status,
+    securityViolations,
+    requireSafeBrowser,
     nextQuestion,
     prevQuestion,
     toggleMarked,
     selectOption,
     tickTimer,
     submitExam,
-    logTabEvent
+    logTabEvent,
+    logSecurityEvent
   } = useStudentExamStore();
 
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(true);
+
+  // Fullscreen helper
+  const enterFullscreen = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      } else if ((document.documentElement as any).webkitRequestFullscreen) {
+        await (document.documentElement as any).webkitRequestFullscreen();
+      }
+      setIsFullscreen(true);
+    } catch (err) {
+      console.warn('Fullscreen request failed:', err);
+      // Fallback: don't permanently block if browser prevents programmatic fullscreen
+      setIsFullscreen(true);
+    }
+  };
+
+  // Safe Browser Fullscreen Lockdown Guard
+  useEffect(() => {
+    if (!requireSafeBrowser) return;
+
+    // Check initial state
+    const isFs = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+    if (!isFs) {
+      setIsFullscreen(false);
+    }
+
+    const handleFullscreenChange = () => {
+      const activeFs = Boolean(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreen(activeFs);
+      if (!activeFs) {
+        logSecurityEvent('fullscreen_exit', 'Exited fullscreen mode');
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [requireSafeBrowser, logSecurityEvent]);
+
+  // Window Focus / Blur Guard (Alt-Tab, Switching Windows)
+  useEffect(() => {
+    if (!requireSafeBrowser) return;
+
+    const handleBlur = () => {
+      logSecurityEvent('window_blur', 'Window lost focus / switched app');
+    };
+
+    window.addEventListener('blur', handleBlur);
+    return () => window.removeEventListener('blur', handleBlur);
+  }, [requireSafeBrowser, logSecurityEvent]);
+
+  // Clipboard & Context Menu Anti-Cheat Blockers
+  useEffect(() => {
+    if (!requireSafeBrowser) return;
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      logSecurityEvent('clipboard_attempt', 'Right-click context menu blocked');
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      logSecurityEvent('clipboard_attempt', 'Copy attempt blocked');
+    };
+
+    const handleCut = (e: ClipboardEvent) => {
+      e.preventDefault();
+      logSecurityEvent('clipboard_attempt', 'Cut attempt blocked');
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      logSecurityEvent('clipboard_attempt', 'Paste attempt blocked');
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('copy', handleCopy);
+    document.addEventListener('cut', handleCut);
+    document.addEventListener('paste', handlePaste);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('copy', handleCopy);
+      document.removeEventListener('cut', handleCut);
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [requireSafeBrowser, logSecurityEvent]);
 
   // 1-second interval for countdown timer
   useEffect(() => {
@@ -50,9 +146,24 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [logTabEvent]);
 
-  // Keyboard navigation: Left/Right arrows, 1-4 option choice
+  // Keyboard navigation & DevTools/Shortcut Blocker
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Safe Browser: Block devtools and inspect keys
+      if (requireSafeBrowser) {
+        const isF12 = e.key === 'F12';
+        const isPrintScreen = e.key === 'PrintScreen';
+        const isCtrlShift = e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase());
+        const isCtrlKeyBlocked = e.ctrlKey && ['u', 'p', 's', 'c', 'v'].includes(e.key.toLowerCase());
+
+        if (isF12 || isPrintScreen || isCtrlShift || isCtrlKeyBlocked) {
+          e.preventDefault();
+          e.stopPropagation();
+          logSecurityEvent('shortcut_blocked', `Keyboard shortcut blocked: ${e.key}`);
+          return;
+        }
+      }
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.key === 'ArrowRight') {
@@ -73,7 +184,7 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentIndex, questions, nextQuestion, prevQuestion, selectOption]);
+  }, [currentIndex, questions, nextQuestion, prevQuestion, selectOption, requireSafeBrowser, logSecurityEvent]);
 
   // Redirect on submitted
   useEffect(() => {
@@ -95,6 +206,33 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
 
   return (
     <div className="h-screen flex flex-col bg-neutral-100 overflow-hidden select-none text-black">
+      {/* Safe Browser Fullscreen Blocker Overlay */}
+      {requireSafeBrowser && !isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-6 text-center">
+          <div className="bg-white max-w-md w-full rounded border-2 border-red-600 p-8 space-y-5 shadow-2xl">
+            <div className="w-16 h-16 bg-red-100 text-red-600 border-2 border-red-600 rounded-full flex items-center justify-center mx-auto text-3xl font-black">
+              ⚠️
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-black uppercase tracking-tight">Safe Browser Lockdown Active</h2>
+              <p className="text-xs text-neutral-600 mt-2 font-medium">
+                You have exited full-screen mode or focus was lost. Your exam is temporarily suspended until you return to full-screen. This violation has been recorded in the proctor audit log.
+              </p>
+            </div>
+            <div className="bg-neutral-100 p-3 rounded text-xs text-neutral-800 font-bold border border-neutral-300 flex items-center justify-between">
+              <span>Security Warnings:</span>
+              <span className="text-red-600 text-sm font-black">{securityViolations} recorded</span>
+            </div>
+            <button
+              onClick={enterFullscreen}
+              className="w-full py-3.5 px-6 bg-black hover:bg-neutral-800 text-white font-black text-sm uppercase tracking-wider rounded border border-black transition-all"
+            >
+              Return to Safe Fullscreen Mode
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Navbar */}
       <header className="bg-white border-b-2 border-black px-6 py-3 flex items-center justify-between z-10">
         <div className="flex items-center space-x-3">
@@ -102,6 +240,17 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
           <span className="text-xs bg-neutral-100 text-black px-2.5 py-1 rounded font-bold border border-black uppercase">
             Question {currentIndex + 1} of {questions.length}
           </span>
+          {requireSafeBrowser && (
+            <span className="text-xs bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded font-bold border border-emerald-600 flex items-center space-x-1 uppercase">
+              <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+              <span>Safe Browser Active</span>
+              {securityViolations > 0 && (
+                <span className="ml-1 bg-red-600 text-white px-1.5 py-0.2 rounded text-[10px]">
+                  {securityViolations}
+                </span>
+              )}
+            </span>
+          )}
         </div>
 
         {/* Center / Right: Timer & Save Indicator */}

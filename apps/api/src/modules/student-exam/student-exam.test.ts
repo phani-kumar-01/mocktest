@@ -176,4 +176,39 @@ describe('Student Exam Engine Module (Agent B)', () => {
     const body = JSON.parse(res.body);
     expect(body.status).toBe('submitted');
   });
+
+  it('Safe Browser endpoints: browser-check and seb-config', async () => {
+    const checkRes = await app.inject({
+      method: 'GET',
+      url: '/api/student/browser-check',
+      cookies: { sid: studentSid },
+      headers: { 'user-agent': 'SafeExamBrowser/3.4.1' }
+    });
+    expect(checkRes.statusCode).toBe(200);
+    const checkBody = JSON.parse(checkRes.body);
+    expect(checkBody.isSeb).toBe(true);
+
+    const sebRes = await app.inject({
+      method: 'GET',
+      url: `/api/student/exams/${examId}/seb-config`,
+      cookies: { sid: studentSid }
+    });
+    expect(sebRes.statusCode).toBe(200);
+    expect(sebRes.headers['content-type']).toBe('application/seb');
+    expect(sebRes.body).toContain('<key>startURL</key>');
+  });
+
+  it('POST /api/student/attempts/:id/security-event records anti-cheat events', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: `/api/student/attempts/${attemptId}/security-event`,
+      cookies: { sid: studentSid },
+      payload: {
+        eventType: 'fullscreen_exit',
+        details: 'User pressed Esc'
+      }
+    });
+
+    expect(res.statusCode).toBe(204);
+  });
 });

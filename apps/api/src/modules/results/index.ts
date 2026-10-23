@@ -9,7 +9,9 @@ import {
   StudentAnalysisResponse,
   ExamResultsSummary,
   ExamResultRow,
-  StudentWrongQuestion
+  StudentWrongQuestion,
+  StudentDetailedQuestion,
+  AttemptMetadata
 } from '@nptel/shared';
 
 /**
@@ -266,12 +268,17 @@ export async function getStudentAnalysis(examId: string, studentId: string): Pro
   const qMap = new Map(questions.map(q => [q.id, q]));
 
   const wrongQuestions: StudentWrongQuestion[] = [];
-  for (const item of qOrder) {
+  const allQuestions: StudentDetailedQuestion[] = [];
+
+  for (let idx = 0; idx < qOrder.length; idx++) {
+    const item = qOrder[idx];
     const q = qMap.get(item.qid);
     if (!q) continue;
 
     const chosen = ansMap.get(q.id) || null;
-    if (chosen !== q.correct) {
+    const isCorrect = chosen ? chosen.toLowerCase() === q.correct.toLowerCase() : false;
+
+    if (!isCorrect) {
       wrongQuestions.push({
         questionId: q.id,
         topic: q.topic,
@@ -284,7 +291,46 @@ export async function getStudentAnalysis(examId: string, studentId: string): Pro
         explanationMd: q.explanationMd
       });
     }
+
+    const options = item.options.map(optKey => {
+      let text = '';
+      if (optKey === 'a') text = q.optionA;
+      if (optKey === 'b') text = q.optionB;
+      if (optKey === 'c') text = q.optionC;
+      if (optKey === 'd') text = q.optionD;
+      return { key: optKey, text };
+    });
+
+    const marks = Number(q.marks || 1);
+    const negative = exam.negativeMarking ? Number(q.negative || 0) : 0;
+    const marksAwarded = isCorrect ? marks : (chosen ? -negative : 0);
+
+    allQuestions.push({
+      questionId: q.id,
+      index: idx + 1,
+      topic: q.topic,
+      subtopic: q.subtopic || undefined,
+      bodyMd: q.bodyMd,
+      codeSnippet: q.codeSnippet,
+      codeLang: q.codeLang,
+      options,
+      studentAnswer: chosen,
+      correctAnswer: q.correct,
+      isCorrect,
+      marksAwarded,
+      explanationMd: q.explanationMd
+    });
   }
+
+  const attemptMeta: AttemptMetadata = {
+    attemptId: attempt.id,
+    startedAt: attempt.startedAt.toISOString(),
+    submittedAt: attempt.submittedAt ? attempt.submittedAt.toISOString() : null,
+    status: attempt.status,
+    tabSwitches: attempt.tabSwitches || 0,
+    securityViolations: attempt.securityViolations || 0,
+    isSafeBrowser: attempt.isSafeBrowser !== false
+  };
 
   return {
     examId: exam.id,
@@ -303,7 +349,9 @@ export async function getStudentAnalysis(examId: string, studentId: string): Pro
     leftToLearnTopics,
     topicScores,
     focusAreas,
-    wrongQuestions
+    wrongQuestions,
+    allQuestions,
+    attemptMeta
   };
 }
 

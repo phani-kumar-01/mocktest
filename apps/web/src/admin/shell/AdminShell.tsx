@@ -11,7 +11,7 @@ export default function AdminShell({ user, children }: ShellProps) {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await api.post('/auth/logout');
+    await api.post('/auth/logout?role=admin');
     navigate('/admin/login');
     window.location.reload();
   };

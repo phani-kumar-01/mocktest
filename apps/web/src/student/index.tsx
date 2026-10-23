@@ -15,7 +15,7 @@ export default function StudentApp() {
   // Check auth status
   const { data: auth, refetch: refetchAuth, isLoading: authLoading } = useQuery<AuthMeResponse>({
     queryKey: ['studentAuthMe'],
-    queryFn: () => api.get('/auth/me'),
+    queryFn: () => api.get('/auth/me?role=student'),
     retry: false
   });
 
@@ -30,7 +30,9 @@ export default function StudentApp() {
         questions: data.questions,
         answers: data.answers,
         deadlineAt: data.deadlineAt,
-        serverTime: data.serverTime
+        serverTime: data.serverTime,
+        securityViolations: data.securityViolations,
+        requireSafeBrowser: data.requireSafeBrowser
       });
       if (title) setExamTitle(title);
       setActiveAttemptId(attemptId);
@@ -45,7 +47,7 @@ export default function StudentApp() {
   };
 
   const handleLogout = async () => {
-    await api.post('/auth/logout');
+    await api.post('/auth/logout?role=student');
     refetchAuth();
     setActiveAttemptId(null);
     resetExam();

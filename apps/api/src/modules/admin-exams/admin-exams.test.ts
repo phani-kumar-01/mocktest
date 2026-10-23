@@ -119,4 +119,35 @@ describe('Admin Exams & Control Module (Agent C)', () => {
     });
     expect(resetRes.statusCode).toBe(200);
   });
+
+  it('admin can restart exam with separate instance mode (Run 2 isolation)', async () => {
+    const restartRes = await app.inject({
+      method: 'POST',
+      url: `/api/admin/exams/${examId}/restart`,
+      cookies: { sid: adminSid },
+      payload: { mode: 'separate' }
+    });
+
+    expect(restartRes.statusCode).toBe(201);
+    const body = JSON.parse(restartRes.body);
+    expect(body.instanceNumber).toBe(2);
+    expect(body.title).toContain('Run 2');
+    expect(body.status).toBe('live');
+    expect(body.parentExamId).toBe(examId);
+  });
+
+  it('admin can restart exam with merge mode (reopening instance)', async () => {
+    // Reopen original exam in merge mode
+    const mergeRes = await app.inject({
+      method: 'POST',
+      url: `/api/admin/exams/${examId}/restart`,
+      cookies: { sid: adminSid },
+      payload: { mode: 'merge' }
+    });
+
+    expect(mergeRes.statusCode).toBe(200);
+    const body = JSON.parse(mergeRes.body);
+    expect(body.id).toBe(examId);
+    expect(body.status).toBe('live');
+  });
 });

@@ -84,20 +84,43 @@ const authRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
   // Logout
   fastify.post('/logout', async (request, reply) => {
-    const sid = request.cookies.sid;
-    if (sid) {
-      await db.update(schema.sessions)
-        .set({ revoked: true })
-        .where(eq(schema.sessions.id, sid));
+    const roleParam = (request.query as any)?.role as 'student' | 'admin' | undefined;
+
+    if (roleParam === 'admin') {
+      const sid = request.cookies.admin_sid;
+      if (sid) {
+        await db.update(schema.sessions)
+          .set({ revoked: true })
+          .where(eq(schema.sessions.id, sid));
+      }
+      reply.clearCookie('admin_sid', { path: '/' });
+    } else if (roleParam === 'student') {
+      const sid = request.cookies.student_sid;
+      if (sid) {
+        await db.update(schema.sessions)
+          .set({ revoked: true })
+          .where(eq(schema.sessions.id, sid));
+      }
+      reply.clearCookie('student_sid', { path: '/' });
+    } else {
+      const allSids = [request.cookies.sid, request.cookies.admin_sid, request.cookies.student_sid].filter(Boolean) as string[];
+      for (const sid of allSids) {
+        await db.update(schema.sessions)
+          .set({ revoked: true })
+          .where(eq(schema.sessions.id, sid));
+      }
+      reply.clearCookie('sid', { path: '/' });
+      reply.clearCookie('admin_sid', { path: '/' });
+      reply.clearCookie('student_sid', { path: '/' });
     }
 
-    reply.clearCookie('sid', { path: '/' });
     return reply.status(204).send();
   });
 
   // Get Current Authenticated User (GET /auth/me)
   fastify.get('/me', async (request, reply) => {
-    const session = await getSessionFromRequest(request);
+    const roleParam = (request.query as any)?.role as 'student' | 'admin' | undefined;
+    const session = await getSessionFromRequest(request, roleParam);
     if (!session) {
       throw new AppError(401, 'UNAUTHORIZED', 'Not authenticated');
     }

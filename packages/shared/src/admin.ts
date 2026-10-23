@@ -29,6 +29,8 @@ export interface MonitorStudentRow {
   totalQuestions: number;
   lastSavedAt?: string | null;
   tabSwitches: number;
+  securityViolations?: number;
+  isSafeBrowser?: boolean;
   deadlineAt?: string | null;
   attemptId?: string | null;
 }

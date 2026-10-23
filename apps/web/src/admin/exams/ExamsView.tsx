@@ -8,6 +8,10 @@ export default function ExamsView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showExtendModal, setShowExtendModal] = useState<string | null>(null);
   const [extendMinutes, setExtendMinutes] = useState(10);
+  const [restartModalExam, setRestartModalExam] = useState<any | null>(null);
+  const [restartMode, setRestartMode] = useState<'separate' | 'merge'>('separate');
+  const [restartTitle, setRestartTitle] = useState('');
+  const [isRestarting, setIsRestarting] = useState(false);
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -24,6 +28,7 @@ export default function ExamsView() {
   const [lateJoinCutoff, setLateJoinCutoff] = useState<number | ''>('');
   const [assignmentMarks, setAssignmentMarks] = useState(20);
   const [batchFilter, setBatchFilter] = useState('');
+  const [requireSafeBrowser, setRequireSafeBrowser] = useState(true);
 
   // Fetch exams
   const { data: exams = [], refetch: refetchExams, isLoading } = useQuery({
@@ -119,7 +124,8 @@ export default function ExamsView() {
         joinPolicy,
         lateJoinCutoffMinutes: lateJoinCutoff !== '' ? Number(lateJoinCutoff) : null,
         assignmentMarks,
-        batchFilter: batchFilter || null
+        batchFilter: batchFilter || null,
+        requireSafeBrowser
       });
 
       // 4. Assign questions to exam pool
@@ -171,6 +177,23 @@ export default function ExamsView() {
     }
   };
 
+  const handleRestartExam = async () => {
+    if (!restartModalExam) return;
+    setIsRestarting(true);
+    try {
+      await api.post(`/admin/exams/${restartModalExam.id}/restart`, {
+        mode: restartMode,
+        title: restartTitle.trim() || undefined
+      });
+      setRestartModalExam(null);
+      refetchExams();
+    } catch (err: any) {
+      alert(err.message || 'Failed to restart exam');
+    } finally {
+      setIsRestarting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 text-black bg-white">
       {/* Header */}
@@ -216,9 +239,19 @@ export default function ExamsView() {
                   <div className="space-y-1">
                     <div className="flex items-center space-x-3">
                       <h3 className="text-lg font-bold text-black">{exam.title}</h3>
+                      {exam.instanceNumber && exam.instanceNumber > 1 && (
+                        <span className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-900 text-white">
+                          Run {exam.instanceNumber}
+                        </span>
+                      )}
                       <span className={`text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded border ${badgeClass}`}>
                         {isLive ? '● LIVE' : exam.status}
                       </span>
+                      {exam.requireSafeBrowser !== false && (
+                        <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-600">
+                          🛡️ Safe Browser
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-neutral-600">
                       Duration: {exam.durationMinutes}m {exam.extraMinutes > 0 ? `(+${exam.extraMinutes}m extra)` : ''} | Policy: <span className="font-semibold text-black">{exam.joinPolicy}</span> | Questions: {exam.questionsPerStudent}
@@ -251,6 +284,20 @@ export default function ExamsView() {
                           Stop Exam ⏹
                         </button>
                       </>
+                    )}
+
+                    {/* Restart Exam Option (Supports separate instance or merge) */}
+                    {(isLive || isEnded) && (
+                      <button
+                        onClick={() => {
+                          setRestartModalExam(exam);
+                          setRestartMode('separate');
+                          setRestartTitle('');
+                        }}
+                        className="px-3 py-1.5 bg-black hover:bg-neutral-800 text-white font-bold text-xs rounded border border-black transition-colors"
+                      >
+                        Restart Exam 🔄
+                      </button>
                     )}
 
                     <button
@@ -306,6 +353,101 @@ export default function ExamsView() {
               <button onClick={() => setShowExtendModal(null)} className="px-3 py-1.5 text-sm text-black border border-neutral-300 rounded hover:bg-neutral-100">Cancel</button>
               <button onClick={() => handleExtendExam(showExtendModal)} className="px-4 py-1.5 bg-black hover:bg-neutral-800 text-white font-bold rounded text-sm">
                 Extend Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restart Exam Modal (Separate Instance vs Merge) */}
+      {restartModalExam && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded max-w-lg w-full p-6 space-y-5 border-2 border-black">
+            <div className="border-b border-black pb-3">
+              <h3 className="text-lg font-bold text-black uppercase">Restart Exam: {restartModalExam.title}</h3>
+              <p className="text-xs text-neutral-600 mt-1">
+                Choose how new exam attempts and results should be handled.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <label
+                onClick={() => setRestartMode('separate')}
+                className={`block p-4 rounded border-2 cursor-pointer transition-all ${
+                  restartMode === 'separate' ? 'border-black bg-neutral-100' : 'border-neutral-300 hover:border-black'
+                }`}
+              >
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="radio"
+                    name="restartMode"
+                    checked={restartMode === 'separate'}
+                    onChange={() => setRestartMode('separate')}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="font-bold text-sm text-black uppercase">Option 1: Create Separate Instance (New Run)</p>
+                    <p className="text-xs text-neutral-600 mt-1">
+                      <strong>Clean isolation:</strong> Creates an independent instance (e.g. Run {(restartModalExam.instanceNumber || 1) + 1}) with a copied question pool. Old test-takers' results and performances are archived and kept completely separate, never colliding with the new examinees.
+                    </p>
+                  </div>
+                </div>
+              </label>
+
+              <label
+                onClick={() => setRestartMode('merge')}
+                className={`block p-4 rounded border-2 cursor-pointer transition-all ${
+                  restartMode === 'merge' ? 'border-black bg-neutral-100' : 'border-neutral-300 hover:border-black'
+                }`}
+              >
+                <div className="flex items-start space-x-3">
+                  <input
+                    type="radio"
+                    name="restartMode"
+                    checked={restartMode === 'merge'}
+                    onChange={() => setRestartMode('merge')}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="font-bold text-sm text-black uppercase">Option 2: Merge with Existing Instance</p>
+                    <p className="text-xs text-neutral-600 mt-1">
+                      <strong>Shared instance:</strong> Reopens this exam so new test-takers can take it. Existing student submissions are preserved and all student results are merged together into this exam instance.
+                    </p>
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {restartMode === 'separate' && (
+              <div>
+                <label className="block text-xs font-bold uppercase text-black mb-1">
+                  New Instance Title (Optional):
+                </label>
+                <input
+                  type="text"
+                  value={restartTitle}
+                  onChange={e => setRestartTitle(e.target.value)}
+                  placeholder={`${restartModalExam.title.replace(/\s*\(Run\s+\d+\)$/i, '')} (Run ${(restartModalExam.instanceNumber || 1) + 1})`}
+                  className="w-full px-3 py-2 border border-black rounded text-sm text-black"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end space-x-2 pt-3 border-t border-black">
+              <button
+                type="button"
+                onClick={() => setRestartModalExam(null)}
+                className="px-4 py-2 text-sm text-black border border-neutral-300 rounded hover:bg-neutral-100"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRestartExam}
+                disabled={isRestarting}
+                className="px-5 py-2 bg-black hover:bg-neutral-800 disabled:bg-neutral-400 text-white font-bold rounded text-sm uppercase"
+              >
+                {isRestarting ? 'Restarting...' : 'Confirm Restart'}
               </button>
             </div>
           </div>
@@ -515,6 +657,24 @@ export default function ExamsView() {
                   placeholder="e.g. 15 (blank = no limit)"
                   className="w-full px-3 py-2 border border-black rounded text-sm text-black"
                 />
+              </div>
+
+              {/* Safe Browser Enforcement */}
+              <div className="col-span-2 p-3 bg-neutral-50 rounded border border-black">
+                <label className="flex items-center space-x-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={requireSafeBrowser}
+                    onChange={e => setRequireSafeBrowser(e.target.checked)}
+                    className="accent-black w-4 h-4"
+                  />
+                  <div>
+                    <span className="text-xs font-bold uppercase text-black">Enforce Safe Exam Browser Mode</span>
+                    <p className="text-[11px] text-neutral-600">
+                      Activates full-screen lockdown, window blur detection, clipboard/shortcut blocks, and audit logging.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
 

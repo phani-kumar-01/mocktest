@@ -9,6 +9,7 @@ import {
   CreateExamSchema,
   UpdateExamSchema,
   ExtendExamSchema,
+  RestartExamSchema,
   CreateStudentSchema,
   UpdateStudentSchema,
   MonitorResponse,
@@ -52,6 +53,7 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       strongThreshold: String(body.strongThreshold),
       weakThreshold: String(body.weakThreshold),
       gradeTiers: body.gradeTiers || undefined,
+      requireSafeBrowser: body.requireSafeBrowser !== false,
       createdBy: request.sessionUser!.id
     }).returning();
 
@@ -183,14 +185,12 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     if (exam.status === 'live') {
       return reply.send(exam);
     }
-    if (exam.status === 'ended') {
-      throw new AppError(400, 'EXAM_ALREADY_ENDED', 'Cannot restart an ended exam');
-    }
 
     const [updated] = await db.update(schema.exams)
       .set({
         status: 'live',
-        startedAt: new Date()
+        startedAt: new Date(),
+        endedAt: null
       })
       .where(eq(schema.exams.id, id))
       .returning();
@@ -202,6 +202,115 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     });
 
     return reply.send(updated);
+  });
+
+  // 7b. POST /api/admin/exams/:id/restart
+  fastify.post('/admin/exams/:id/restart', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = RestartExamSchema.parse(request.body || { mode: 'separate' });
+
+    const [sourceExam] = await db.select().from(schema.exams).where(eq(schema.exams.id, id)).limit(1);
+    if (!sourceExam) throw new AppError(404, 'NOT_FOUND', 'Exam not found');
+
+    const now = new Date();
+
+    if (body.mode === 'separate') {
+      // Separate Instance Mode:
+      // 1. If currently live, end it and auto-submit in-progress attempts
+      if (sourceExam.status === 'live') {
+        await db.update(schema.exams)
+          .set({ status: 'ended', endedAt: now })
+          .where(eq(schema.exams.id, id));
+
+        await db.update(schema.attempts)
+          .set({ status: 'auto_submitted', submittedAt: now })
+          .where(and(eq(schema.attempts.examId, id), eq(schema.attempts.status, 'in_progress')));
+
+        await computeExamResults(id);
+      }
+
+      // 2. Determine root parent and next instance number
+      const rootParentId = sourceExam.parentExamId || sourceExam.id;
+      const related = await db.select().from(schema.exams)
+        .where(sql`${schema.exams.id} = ${rootParentId} OR ${schema.exams.parentExamId} = ${rootParentId}`);
+
+      const nextInstanceNumber = related.length + 1;
+      const baseTitle = sourceExam.title.replace(/\s*\(Run\s+\d+\)$/i, '');
+      const newTitle = body.title || `${baseTitle} (Run ${nextInstanceNumber})`;
+
+      // 3. Create clean separate instance with copied configurations
+      const [newInstance] = await db.insert(schema.exams).values({
+        title: newTitle,
+        subjectId: sourceExam.subjectId,
+        status: 'live',
+        startedAt: now,
+        endedAt: null,
+        durationMinutes: sourceExam.durationMinutes,
+        extraMinutes: 0,
+        joinPolicy: sourceExam.joinPolicy,
+        lateJoinCutoffMinutes: sourceExam.lateJoinCutoffMinutes,
+        hardCloseAt: null,
+        questionsPerStudent: sourceExam.questionsPerStudent,
+        shuffleQuestions: sourceExam.shuffleQuestions,
+        shuffleOptions: sourceExam.shuffleOptions,
+        negativeMarking: sourceExam.negativeMarking,
+        batchFilter: sourceExam.batchFilter,
+        assignmentMarks: sourceExam.assignmentMarks,
+        assignmentMax: sourceExam.assignmentMax,
+        examMax: sourceExam.examMax,
+        passTotal: sourceExam.passTotal,
+        passAssignmentMin: sourceExam.passAssignmentMin,
+        passExamMin: sourceExam.passExamMin,
+        strongThreshold: sourceExam.strongThreshold,
+        weakThreshold: sourceExam.weakThreshold,
+        gradeTiers: sourceExam.gradeTiers || undefined,
+        requireSafeBrowser: sourceExam.requireSafeBrowser !== false,
+        parentExamId: rootParentId,
+        instanceNumber: nextInstanceNumber,
+        createdBy: request.sessionUser!.id
+      }).returning();
+
+      // 4. Copy question pool to the new instance
+      const pool = await db.select().from(schema.examQuestions).where(eq(schema.examQuestions.examId, id));
+      if (pool.length > 0) {
+        await db.insert(schema.examQuestions).values(
+          pool.map(p => ({ examId: newInstance.id, questionId: p.questionId }))
+        );
+      }
+
+      await db.insert(schema.auditLog).values({
+        actor: request.sessionUser!.username || request.sessionUser!.name,
+        action: 'EXAM_RESTART_SEPARATE',
+        details: {
+          previousExamId: id,
+          newInstanceId: newInstance.id,
+          instanceNumber: nextInstanceNumber,
+          title: newTitle
+        }
+      });
+
+      return reply.status(201).send(newInstance);
+    } else {
+      // Merge Mode:
+      // Reopen current exam instance: preserve previous attempts & scores,
+      // and allow new students to enter and submit directly into this instance.
+      const [reopened] = await db.update(schema.exams)
+        .set({
+          status: 'live',
+          endedAt: null,
+          startedAt: sourceExam.startedAt || now
+        })
+        .where(eq(schema.exams.id, id))
+        .returning();
+
+      await db.insert(schema.auditLog).values({
+        actor: request.sessionUser!.username || request.sessionUser!.name,
+        action: 'EXAM_RESTART_MERGE',
+        details: { examId: id, mode: 'merge' }
+      });
+
+      return reply.send(reopened);
+    }
   });
 
   // 8. POST /api/admin/exams/:id/stop
@@ -324,7 +433,9 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
           status: 'not_joined',
           answeredCount: 0,
           totalQuestions: exam.questionsPerStudent,
-          tabSwitches: 0
+          tabSwitches: 0,
+          securityViolations: 0,
+          isSafeBrowser: true
         };
       }
 
@@ -345,6 +456,8 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
         totalQuestions: exam.questionsPerStudent,
         lastSavedAt: ansInfo?.lastSavedAt ? new Date(ansInfo.lastSavedAt).toISOString() : undefined,
         tabSwitches: attempt.tabSwitches || 0,
+        securityViolations: attempt.securityViolations || 0,
+        isSafeBrowser: attempt.isSafeBrowser !== false,
         deadlineAt: attempt.deadlineAt.toISOString(),
         attemptId: attempt.id
       };
@@ -397,6 +510,102 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     });
 
     return reply.send({ success: true, message: 'Attempt reset successfully' });
+  });
+
+  // 12b. GET /api/admin/attempts/:id/inspect
+  fastify.get('/admin/attempts/:id/inspect', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const [attempt] = await db.select().from(schema.attempts).where(eq(schema.attempts.id, id)).limit(1);
+    if (!attempt) throw new AppError(404, 'NOT_FOUND', 'Attempt not found');
+
+    const [student] = await db.select().from(schema.students).where(eq(schema.students.id, attempt.studentId)).limit(1);
+    const [exam] = await db.select().from(schema.exams).where(eq(schema.exams.id, attempt.examId)).limit(1);
+
+    const qOrder = (attempt.questionOrder as { qid: string; options: string[] }[]) || [];
+    const qIds = qOrder.map(q => q.qid);
+
+    const questions = qIds.length > 0 
+      ? await db.select().from(schema.questions).where(inArray(schema.questions.id, qIds))
+      : [];
+    const qMap = new Map(questions.map(q => [q.id, q]));
+
+    const userAnswers = await db.select().from(schema.answers).where(eq(schema.answers.attemptId, id));
+    const ansMap = new Map(userAnswers.map(a => [a.questionId, a.chosen]));
+
+    let correctCount = 0;
+    let wrongCount = 0;
+    let answeredCount = 0;
+
+    const detailedQuestions = qOrder.map((item, idx) => {
+      const q = qMap.get(item.qid);
+      const chosen = ansMap.get(item.qid) || null;
+      if (chosen) answeredCount++;
+
+      const isCorrect = q && chosen ? chosen.toLowerCase() === q.correct.toLowerCase() : false;
+      if (chosen) {
+        if (isCorrect) correctCount++;
+        else wrongCount++;
+      }
+
+      const options = item.options.map(optKey => {
+        let text = '';
+        if (optKey === 'a') text = q?.optionA || '';
+        if (optKey === 'b') text = q?.optionB || '';
+        if (optKey === 'c') text = q?.optionC || '';
+        if (optKey === 'd') text = q?.optionD || '';
+        return { key: optKey, text };
+      });
+
+      return {
+        questionId: item.qid,
+        index: idx + 1,
+        topic: q?.topic || 'General',
+        subtopic: q?.subtopic || undefined,
+        bodyMd: q?.bodyMd || '',
+        codeSnippet: q?.codeSnippet,
+        codeLang: q?.codeLang,
+        options,
+        studentAnswer: chosen,
+        correctAnswer: q?.correct || '',
+        isCorrect,
+        explanationMd: q?.explanationMd
+      };
+    });
+
+    return reply.send({
+      attempt: {
+        id: attempt.id,
+        status: attempt.status,
+        startedAt: attempt.startedAt,
+        deadlineAt: attempt.deadlineAt,
+        submittedAt: attempt.submittedAt,
+        tabSwitches: attempt.tabSwitches || 0,
+        securityViolations: attempt.securityViolations || 0,
+        isSafeBrowser: attempt.isSafeBrowser !== false,
+        clientMeta: attempt.clientMeta
+      },
+      student: {
+        id: student?.id,
+        rollNo: student?.rollNo,
+        name: student?.name,
+        email: student?.email,
+        batch: student?.batch
+      },
+      exam: {
+        id: exam?.id,
+        title: exam?.title,
+        durationMinutes: exam?.durationMinutes,
+        requireSafeBrowser: exam?.requireSafeBrowser !== false
+      },
+      stats: {
+        totalQuestions: detailedQuestions.length,
+        answeredCount,
+        unansweredCount: detailedQuestions.length - answeredCount,
+        correctCount,
+        wrongCount
+      },
+      questions: detailedQuestions
+    });
   });
 
   // 13. Student Management: GET /api/admin/students

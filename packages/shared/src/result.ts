@@ -24,6 +24,32 @@ export interface StudentWrongQuestion {
   explanationMd?: string | null;
 }
 
+export interface StudentDetailedQuestion {
+  questionId: string;
+  index: number;
+  topic: string;
+  subtopic?: string;
+  bodyMd: string;
+  codeSnippet?: string | null;
+  codeLang?: string | null;
+  options: { key: string; text: string }[];
+  studentAnswer: string | null;
+  correctAnswer: string;
+  isCorrect: boolean;
+  marksAwarded: number;
+  explanationMd?: string | null;
+}
+
+export interface AttemptMetadata {
+  attemptId: string;
+  startedAt: string;
+  submittedAt: string | null;
+  status: string;
+  tabSwitches: number;
+  securityViolations: number;
+  isSafeBrowser: boolean;
+}
+
 export interface StudentAnalysisResponse {
   examId: string;
   examTitle: string;
@@ -61,6 +87,8 @@ export interface StudentAnalysisResponse {
     recommendation: string;
   }[];
   wrongQuestions: StudentWrongQuestion[];
+  allQuestions?: StudentDetailedQuestion[];
+  attemptMeta?: AttemptMetadata;
 }
 
 export interface ExamResultsSummary {

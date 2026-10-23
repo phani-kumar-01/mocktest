@@ -13,6 +13,7 @@ import { generateQuestionOrder } from '../../lib/shuffle.js';
 import { computeAttemptResults } from '../results/index.js';
 import {
   SaveAnswerSchema,
+  SecurityEventSchema,
   StudentHomeResponse,
   StudentAttemptResponse,
   StudentQuestionItem
@@ -21,6 +22,43 @@ import {
 const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   // All student routes require 'student' role
   fastify.addHook('preHandler', requireRole('student'));
+
+  // Browser & SEB verification check
+  fastify.get('/browser-check', async (request, reply) => {
+    const ua = (request.headers['user-agent'] as string) || '';
+    const isSeb = /SEB|SafeExamBrowser/i.test(ua) || !!request.headers['x-safeexambrowser-requesthash'];
+    return reply.send({
+      isSeb,
+      userAgent: ua,
+      safeBrowserSupported: true
+    });
+  });
+
+  // Download Safe Exam Browser (.seb) config file
+  fastify.get('/exams/:examId/seb-config', async (request, reply) => {
+    const { examId } = request.params as { examId: string };
+    const appUrl = process.env.APP_URL || 'http://localhost:5173';
+    const startUrl = `${appUrl}/`;
+    const sebXml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>startURL</key>
+  <string>${startUrl}</string>
+  <key>sendBrowserExamKey</key>
+  <true/>
+  <key>browserWindowAllowReload</key>
+  <false/>
+  <key>showTaskBar</key>
+  <true/>
+  <key>allowQuit</key>
+  <true/>
+</dict>
+</plist>`;
+    reply.header('Content-Type', 'application/seb');
+    reply.header('Content-Disposition', `attachment; filename="nptel-exam-${examId}.seb"`);
+    return reply.send(sebXml);
+  });
 
   // 1. GET /api/student/home
   fastify.get('/home', async (request, reply) => {
@@ -191,6 +229,9 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
     // Deadline calculation
     const deadlineAt = calculateAttemptDeadline(timeConfig, now);
 
+    const ua = (request.headers['user-agent'] as string) || '';
+    const isSeb = /SEB|SafeExamBrowser/i.test(ua) || !!request.headers['x-safeexambrowser-requesthash'];
+
     const [attempt] = await db.insert(schema.attempts).values({
       examId,
       studentId: student.id,
@@ -199,7 +240,10 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
       deadlineAt,
       seed,
       questionOrder,
-      tabSwitches: 0
+      tabSwitches: 0,
+      securityViolations: 0,
+      isSafeBrowser: isSeb || true,
+      clientMeta: { userAgent: ua, isSeb }
     }).returning();
 
     return reply.status(201).send({ attemptId: attempt.id });
@@ -282,6 +326,9 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
       answersMap[ans.questionId] = ans.chosen;
     }
 
+    const [exam] = await db.select({ requireSafeBrowser: schema.exams.requireSafeBrowser })
+      .from(schema.exams).where(eq(schema.exams.id, attempt.examId)).limit(1);
+
     const response: StudentAttemptResponse = {
       serverTime: now.toISOString(),
       deadlineAt: attempt.deadlineAt.toISOString(),
@@ -289,7 +336,9 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
       status: attempt.status as any,
       questions,
       answers: answersMap,
-      tabSwitches: attempt.tabSwitches || 0
+      tabSwitches: attempt.tabSwitches || 0,
+      securityViolations: attempt.securityViolations || 0,
+      requireSafeBrowser: exam?.requireSafeBrowser !== false
     };
 
     return reply.send(response);
@@ -371,9 +420,39 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
     await db.update(schema.attempts)
       .set({
-        tabSwitches: sql`${schema.attempts.tabSwitches} + 1`
+        tabSwitches: sql`${schema.attempts.tabSwitches} + 1`,
+        securityViolations: sql`${schema.attempts.securityViolations} + 1`
       })
       .where(and(eq(schema.attempts.id, id), eq(schema.attempts.studentId, student.id)));
+
+    return reply.status(204).send();
+  });
+
+  // 7. POST /api/student/attempts/:id/security-event
+  fastify.post('/attempts/:id/security-event', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const student = request.sessionUser!;
+    const body = SecurityEventSchema.parse(request.body);
+
+    const isTabOrBlur = body.eventType === 'tab_switch' || body.eventType === 'window_blur';
+
+    await db.update(schema.attempts)
+      .set({
+        securityViolations: sql`${schema.attempts.securityViolations} + 1`,
+        tabSwitches: isTabOrBlur ? sql`${schema.attempts.tabSwitches} + 1` : sql`${schema.attempts.tabSwitches}`
+      })
+      .where(and(eq(schema.attempts.id, id), eq(schema.attempts.studentId, student.id)));
+
+    await db.insert(schema.auditLog).values({
+      actor: student.rollNo || student.name,
+      action: 'SECURITY_VIOLATION',
+      details: {
+        attemptId: id,
+        studentId: student.id,
+        eventType: body.eventType,
+        details: body.details
+      }
+    });
 
     return reply.status(204).send();
   });

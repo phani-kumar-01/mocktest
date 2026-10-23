@@ -20,6 +20,13 @@ export default function StudentHome({ user, onEnterExam, onLogout }: HomeProps) 
     refetchInterval: 5000
   });
 
+  // Check Safe Exam Browser
+  const { data: browserCheck } = useQuery({
+    queryKey: ['browserCheck'],
+    queryFn: () => api.get('/student/browser-check'),
+    staleTime: 60000
+  });
+
   const handleStartExam = async (examId: string, title?: string) => {
     setStarting(true);
     setStartError(null);
@@ -78,6 +85,37 @@ export default function StudentHome({ user, onEnterExam, onLogout }: HomeProps) 
                 {startError}
               </div>
             )}
+
+            {/* Safe Browser Status & Notice */}
+            <div className="bg-neutral-50 rounded border border-black p-3.5 text-left space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-black flex items-center">
+                  <span className="w-2 h-2 rounded-full bg-emerald-600 mr-1.5"></span>
+                  Safe Exam Browser Lockdown
+                </span>
+                {browserCheck?.isSeb ? (
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-600">
+                    SEB Client Verified
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-bold text-neutral-800 bg-neutral-200 px-2 py-0.5 rounded border border-neutral-400">
+                    In-Browser Safe Mode
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-neutral-600 leading-normal">
+                This exam enforces full-screen lockdown, window focus tracking, anti-copy protection, and tab-switch audit logs. Exiting full-screen or switching windows will trigger a proctor warning.
+              </p>
+              <div className="pt-1 flex items-center justify-between text-[11px]">
+                <a
+                  href={`/api/student/exams/${homeState.exam.id}/seb-config`}
+                  download
+                  className="font-bold underline text-neutral-800 hover:text-black"
+                >
+                  Download .seb Configuration File
+                </a>
+              </div>
+            </div>
 
             {homeState.exam.canEnter ? (
               <button

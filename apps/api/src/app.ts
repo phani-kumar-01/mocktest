@@ -23,6 +23,22 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Global Error Handler
   app.setErrorHandler(errorHandler);
 
+  // Support empty JSON request bodies gracefully without throwing FST_ERR_CTP_EMPTY_JSON_BODY
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body: string | Buffer, done) => {
+    const raw = typeof body === 'string' ? body : (body ? body.toString('utf-8') : '');
+    if (!raw.trim()) {
+      done(null, {});
+      return;
+    }
+    try {
+      const json = JSON.parse(raw);
+      done(null, json);
+    } catch (err: any) {
+      err.statusCode = 400;
+      done(err, undefined);
+    }
+  });
+
   // Plugins
   await app.register(cors, {
     origin: true,

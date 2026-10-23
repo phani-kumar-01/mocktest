@@ -121,6 +121,9 @@ export const exams = pgTable('exams', {
     { min: 40, label: 'Successfully Completed' }
   ]),
   resultsPublished: boolean('results_published').default(false),
+  requireSafeBrowser: boolean('require_safe_browser').default(true),
+  parentExamId: uuid('parent_exam_id'),
+  instanceNumber: integer('instance_number').default(1),
   createdBy: uuid('created_by').references(() => admins.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow()
 });
@@ -142,7 +145,10 @@ export const attempts = pgTable('attempts', {
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   seed: bigint('seed', { mode: 'number' }).notNull(),
   questionOrder: jsonb('question_order').notNull(), // [{ qid: string, options: string[] }]
-  tabSwitches: integer('tab_switches').default(0)
+  tabSwitches: integer('tab_switches').default(0),
+  securityViolations: integer('security_violations').default(0),
+  isSafeBrowser: boolean('is_safe_browser').default(true),
+  clientMeta: jsonb('client_meta')
 }, (table) => ({
   examStudentUnique: unique().on(table.examId, table.studentId),
   examStatusIdx: index('attempts_exam_status_idx').on(table.examId, table.status)

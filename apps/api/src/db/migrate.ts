@@ -178,6 +178,13 @@ ALTER TABLE questions ADD COLUMN IF NOT EXISTS paragraph text;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS concept text;
 ALTER TABLE questions ADD COLUMN IF NOT EXISTS set_name text;
 CREATE INDEX IF NOT EXISTS questions_group_idx ON questions (group_id);
+
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS parent_exam_id uuid REFERENCES exams(id);
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS instance_number integer DEFAULT 1;
+ALTER TABLE exams ADD COLUMN IF NOT EXISTS require_safe_browser boolean DEFAULT true;
+ALTER TABLE attempts ADD COLUMN IF NOT EXISTS is_safe_browser boolean DEFAULT true;
+ALTER TABLE attempts ADD COLUMN IF NOT EXISTS security_violations integer DEFAULT 0;
+ALTER TABLE attempts ADD COLUMN IF NOT EXISTS client_meta jsonb;
 `;
 
 export async function migrate() {

@@ -24,6 +24,7 @@ export default function ResultsView() {
   const [searchTerm, setSearchTerm] = useState('');
   const [topicFilter, setTopicFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [questionFilter, setQuestionFilter] = useState<'all' | 'wrong' | 'correct'>('all');
 
   // Exams list for dropdown
   const { data: exams = [] } = useQuery({
@@ -125,7 +126,7 @@ export default function ResultsView() {
           >
             {exams.map((e: any) => (
               <option key={e.id} value={e.id}>
-                {e.title}
+                {e.title} {e.instanceNumber > 1 ? `(Run ${e.instanceNumber})` : ''}
               </option>
             ))}
           </select>
@@ -459,6 +460,26 @@ export default function ResultsView() {
               <div><span className="text-[11px] text-neutral-500 uppercase font-bold">Grade & Status</span><p className="text-xs font-bold text-black uppercase mt-1">{studentAnalysis.passed ? '✓ PASSED' : '✕ FAILED'}</p><p className="text-[11px] text-neutral-600 font-semibold">{studentAnalysis.gradeLabel}</p></div>
             </div>
 
+            {/* Safe Browser & Security Violations Audit Bar */}
+            <div className="bg-neutral-50 p-3 rounded border border-black flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2">
+                <span className="font-bold text-black uppercase">🛡️ Safe Browser Mode:</span>
+                <span className="px-2 py-0.5 rounded font-bold text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-600">
+                  {studentAnalysis.attemptMeta?.isSafeBrowser ? 'Active & Enforced' : 'Standard'}
+                </span>
+              </div>
+              <div className="flex items-center space-x-4 text-xs font-semibold">
+                <span>
+                  Tab Switches: <strong className="text-black">{studentAnalysis.attemptMeta?.tabSwitches || 0}</strong>
+                </span>
+                <span>
+                  Total Violations: <strong className={((studentAnalysis.attemptMeta?.securityViolations || 0) + (studentAnalysis.attemptMeta?.tabSwitches || 0)) > 0 ? "text-red-600 font-bold" : "text-black"}>
+                    {(studentAnalysis.attemptMeta?.securityViolations || 0) + (studentAnalysis.attemptMeta?.tabSwitches || 0)}
+                  </strong>
+                </span>
+              </div>
+            </div>
+
             {/* 1. WHAT TOPICS DID HE GOOD AT (Mastered Topics) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -568,36 +589,117 @@ export default function ResultsView() {
               </div>
             </div>
 
-            {/* 4. Missed & Unanswered Questions Review */}
-            {studentAnalysis.wrongQuestions?.length > 0 && (
-              <div className="space-y-3">
+            {/* 4. Complete Individual Question Review */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-black pb-2">
                 <h4 className="font-bold text-black text-sm uppercase">
-                  Missed / Left Unanswered Questions ({studentAnalysis.wrongQuestions.length})
+                  Individual Question Review ({studentAnalysis.allQuestions?.length || studentAnalysis.wrongQuestions?.length || 0})
                 </h4>
-                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-                  {studentAnalysis.wrongQuestions.map((w: any, i: number) => (
-                    <div key={i} className="p-3 bg-neutral-50 rounded border border-black space-y-1.5 text-xs">
-                      <div className="flex justify-between font-bold text-black">
-                        <span>Q{i + 1}. Topic: {w.topic} {w.subtopic ? `(${w.subtopic})` : ''}</span>
-                        <span className={w.studentAnswer ? 'text-black' : 'text-neutral-500'}>
-                          {w.studentAnswer ? `Answered: [${w.studentAnswer.toUpperCase()}]` : 'Left Unanswered'}
-                        </span>
-                      </div>
-                      <p className="text-neutral-900 leading-relaxed">{w.bodyMd}</p>
-                      {w.codeSnippet && (
-                        <pre className="p-2 bg-white rounded border border-neutral-300 font-mono text-[11px] overflow-x-auto">
-                          {w.codeSnippet}
-                        </pre>
-                      )}
-                      <p className="font-bold text-black">✓ Correct Answer: Option {w.correctAnswer.toUpperCase()}</p>
-                      {w.explanationMd && (
-                        <p className="text-neutral-600 italic">Explanation: {w.explanationMd}</p>
-                      )}
-                    </div>
-                  ))}
+                <div className="flex items-center space-x-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setQuestionFilter('all')}
+                    className={`px-2.5 py-1 rounded font-bold uppercase transition-colors border border-black ${
+                      questionFilter === 'all' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-100'
+                    }`}
+                  >
+                    All ({studentAnalysis.allQuestions?.length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuestionFilter('wrong')}
+                    className={`px-2.5 py-1 rounded font-bold uppercase transition-colors border border-black ${
+                      questionFilter === 'wrong' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-100'
+                    }`}
+                  >
+                    Missed ({studentAnalysis.wrongQuestions?.length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQuestionFilter('correct')}
+                    className={`px-2.5 py-1 rounded font-bold uppercase transition-colors border border-black ${
+                      questionFilter === 'correct' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-100'
+                    }`}
+                  >
+                    Correct ({(studentAnalysis.allQuestions?.length || 0) - (studentAnalysis.wrongQuestions?.length || 0)})
+                  </button>
                 </div>
               </div>
-            )}
+
+              {/* Questions List */}
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                {(studentAnalysis.allQuestions || []).filter((q: any) => {
+                  if (questionFilter === 'wrong') return !q.isCorrect;
+                  if (questionFilter === 'correct') return q.isCorrect;
+                  return true;
+                }).map((q: any, i: number) => {
+                  const isAnswered = q.studentAnswer !== null;
+
+                  return (
+                    <div key={q.questionId || i} className="p-4 bg-neutral-50 rounded border border-black space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-black uppercase">
+                          Q{q.index || i + 1}. Topic: {q.topic} {q.subtopic ? `(${q.subtopic})` : ''}
+                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-black ${
+                              !isAnswered
+                                ? 'bg-neutral-200 text-neutral-700'
+                                : q.isCorrect
+                                ? 'bg-black text-white'
+                                : 'bg-neutral-100 text-black'
+                            }`}
+                          >
+                            {!isAnswered ? '⚪ Unanswered' : q.isCorrect ? '✓ Correct (+1)' : '✕ Incorrect (0)'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-neutral-900 leading-relaxed font-medium">{q.bodyMd}</p>
+
+                      {q.codeSnippet && (
+                        <pre className="p-2.5 bg-white rounded border border-neutral-300 font-mono text-[11px] overflow-x-auto text-black">
+                          {q.codeSnippet}
+                        </pre>
+                      )}
+
+                      {/* 4 Options Grid */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {q.options?.map((opt: any) => {
+                          const isSelected = q.studentAnswer?.toLowerCase() === opt.key?.toLowerCase();
+                          const isCorrect = q.correctAnswer?.toLowerCase() === opt.key?.toLowerCase();
+
+                          let optBorder = 'border-neutral-200 bg-white text-neutral-800';
+                          if (isSelected && isCorrect) {
+                            optBorder = 'border-black bg-neutral-900 text-white font-bold';
+                          } else if (isSelected && !isCorrect) {
+                            optBorder = 'border-black bg-neutral-200 text-black font-semibold';
+                          } else if (isCorrect) {
+                            optBorder = 'border-black bg-neutral-100 text-black font-bold';
+                          }
+
+                          return (
+                            <div key={opt.key} className={`p-2 rounded border text-[11px] ${optBorder}`}>
+                              <span className="font-bold mr-1.5 uppercase">[{opt.key.toUpperCase()}]</span>
+                              <span>{opt.text}</span>
+                              {isSelected && <span className="ml-1 text-[10px] uppercase font-black">(Student Pick)</span>}
+                              {isCorrect && <span className="ml-1 text-[10px] uppercase font-black">✓ Correct</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {q.explanationMd && (
+                        <p className="text-neutral-600 italic pt-1 border-t border-neutral-200">
+                          Explanation: {q.explanationMd}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       )}

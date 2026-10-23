@@ -120,4 +120,55 @@ describe('Auth Module (Agent A)', () => {
     const logs = await db.select().from(schema.auditLog).where(eq(schema.auditLog.actor, 'testadmin'));
     expect(logs.length).toBeGreaterThan(0);
   });
+
+  it('keeps admin and student sessions isolated without collision', async () => {
+    // 1. Admin logs in
+    const adminRes = await app.inject({
+      method: 'POST',
+      url: '/api/auth/admin/login',
+      payload: { username: 'testadmin', password: 'adminpass' }
+    });
+    expect(adminRes.statusCode).toBe(200);
+    const adminSid = adminRes.cookies.find(c => c.name === 'admin_sid')?.value;
+    expect(adminSid).toBeDefined();
+
+    // 2. Student logs in (would previously overwrite `sid`)
+    const studentRes = await app.inject({
+      method: 'POST',
+      url: '/api/auth/student/login',
+      payload: { rollNo: 'TEST_ROLL_1', password: 'stud123' }
+    });
+    expect(studentRes.statusCode).toBe(200);
+    const studentSid = studentRes.cookies.find(c => c.name === 'student_sid')?.value;
+    const genericSid = studentRes.cookies.find(c => c.name === 'sid')?.value;
+    expect(studentSid).toBeDefined();
+
+    // 3. Admin portal requests /me?role=admin with admin_sid and the overridden sid
+    const adminMe = await app.inject({
+      method: 'GET',
+      url: '/api/auth/me?role=admin',
+      cookies: {
+        admin_sid: adminSid!,
+        sid: genericSid! // Even if generic sid points to student, admin_sid is prioritized
+      }
+    });
+    expect(adminMe.statusCode).toBe(200);
+    const adminData = JSON.parse(adminMe.body);
+    expect(adminData.role).toBe('admin');
+    expect(adminData.user.username).toBe('testadmin');
+
+    // 4. Student portal requests /me?role=student
+    const studentMe = await app.inject({
+      method: 'GET',
+      url: '/api/auth/me?role=student',
+      cookies: {
+        student_sid: studentSid!,
+        admin_sid: adminSid!
+      }
+    });
+    expect(studentMe.statusCode).toBe(200);
+    const studentData = JSON.parse(studentMe.body);
+    expect(studentData.role).toBe('student');
+    expect(studentData.user.rollNo).toBe('TEST_ROLL_1');
+  });
 });

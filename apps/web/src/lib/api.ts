@@ -12,7 +12,7 @@ export async function apiRequest<T = any>(
   const url = path.startsWith('/api') ? path : `/api${path}`;
   const headers = new Headers(options.headers || {});
   
-  if (!(options.body instanceof FormData) && !headers.has('Content-Type')) {
+  if (!(options.body instanceof FormData) && !headers.has('Content-Type') && options.body !== undefined) {
     headers.set('Content-Type', 'application/json');
   }
 

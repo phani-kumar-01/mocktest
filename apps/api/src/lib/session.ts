@@ -35,13 +35,23 @@ export async function createSession(reply: FastifyReply, userType: 'student' | '
     revoked: false
   }).returning();
 
-  reply.setCookie('sid', newSession.id, {
+  const cookieOptions = {
     path: '/',
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     secure: process.env.NODE_ENV === 'production',
     maxAge: 12 * 60 * 60
-  });
+  };
+
+  // Set role-specific cookie so student and admin sessions never overwrite each other
+  if (userType === 'admin') {
+    reply.setCookie('admin_sid', newSession.id, cookieOptions);
+  } else {
+    reply.setCookie('student_sid', newSession.id, cookieOptions);
+  }
+
+  // Also set 'sid' for backward compatibility
+  reply.setCookie('sid', newSession.id, cookieOptions);
 
   return newSession;
 }
@@ -52,33 +62,71 @@ export async function revokeStudentSessions(studentId: string) {
     .where(and(eq(schema.sessions.userType, 'student'), eq(schema.sessions.userId, studentId)));
 }
 
-export async function getSessionFromRequest(request: FastifyRequest): Promise<SessionData | null> {
-  const sid = request.cookies.sid;
-  if (!sid) return null;
+export async function getSessionFromRequest(
+  request: FastifyRequest,
+  expectedRole?: 'student' | 'admin'
+): Promise<SessionData | null> {
+  // 1. Determine which session IDs to examine
+  const candidates: string[] = [];
 
-  const [session] = await db.select()
-    .from(schema.sessions)
-    .where(and(
-      eq(schema.sessions.id, sid),
-      eq(schema.sessions.revoked, false),
-      gt(schema.sessions.expiresAt, new Date())
-    ))
-    .limit(1);
+  if (expectedRole === 'admin') {
+    if (request.cookies.admin_sid) candidates.push(request.cookies.admin_sid);
+    if (request.cookies.sid && !candidates.includes(request.cookies.sid)) candidates.push(request.cookies.sid);
+  } else if (expectedRole === 'student') {
+    if (request.cookies.student_sid) candidates.push(request.cookies.student_sid);
+    if (request.cookies.sid && !candidates.includes(request.cookies.sid)) candidates.push(request.cookies.sid);
+  } else {
+    // Check if query param specifies role (e.g. /me?role=admin)
+    const queryRole = (request.query as any)?.role;
+    if (queryRole === 'admin') {
+      if (request.cookies.admin_sid) candidates.push(request.cookies.admin_sid);
+      if (request.cookies.sid && !candidates.includes(request.cookies.sid)) candidates.push(request.cookies.sid);
+    } else if (queryRole === 'student') {
+      if (request.cookies.student_sid) candidates.push(request.cookies.student_sid);
+      if (request.cookies.sid && !candidates.includes(request.cookies.sid)) candidates.push(request.cookies.sid);
+    } else {
+      // Fallback: check sid, then admin_sid, then student_sid
+      if (request.cookies.sid) candidates.push(request.cookies.sid);
+      if (request.cookies.admin_sid && !candidates.includes(request.cookies.admin_sid)) candidates.push(request.cookies.admin_sid);
+      if (request.cookies.student_sid && !candidates.includes(request.cookies.student_sid)) candidates.push(request.cookies.student_sid);
+    }
+  }
 
-  if (!session) return null;
-  return {
-    id: session.id,
-    userType: session.userType as 'student' | 'admin',
-    userId: session.userId,
-    expiresAt: session.expiresAt
-  };
+  if (candidates.length === 0) return null;
+
+  // 2. Query for each candidate session
+  for (const sid of candidates) {
+    const [session] = await db.select()
+      .from(schema.sessions)
+      .where(and(
+        eq(schema.sessions.id, sid),
+        eq(schema.sessions.revoked, false),
+        gt(schema.sessions.expiresAt, new Date())
+      ))
+      .limit(1);
+
+    if (session) {
+      // If expectedRole is specified, skip sessions that don't match
+      if (expectedRole && session.userType !== expectedRole) {
+        continue;
+      }
+      return {
+        id: session.id,
+        userType: session.userType as 'student' | 'admin',
+        userId: session.userId,
+        expiresAt: session.expiresAt
+      };
+    }
+  }
+
+  return null;
 }
 
 export function requireRole(role: 'student' | 'admin') {
   return async (request: FastifyRequest, reply: FastifyReply) => {
-    const session = await getSessionFromRequest(request);
+    const session = await getSessionFromRequest(request, role);
     if (!session) {
-      throw new AppError(401, 'UNAUTHORIZED', 'Authentication required');
+      throw new AppError(401, 'UNAUTHORIZED', `Authentication required as ${role}`);
     }
 
     if (session.userType !== role) {

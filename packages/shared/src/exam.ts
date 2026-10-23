@@ -38,12 +38,27 @@ export const CreateExamSchema = z.object({
   passExamMin: z.number().min(0).default(30),
   strongThreshold: z.number().min(0).max(100).default(70),
   weakThreshold: z.number().min(0).max(100).default(50),
-  gradeTiers: z.array(GradeTierSchema).optional()
+  gradeTiers: z.array(GradeTierSchema).optional(),
+  requireSafeBrowser: z.boolean().default(true).optional(),
+  parentExamId: z.string().uuid().optional().nullable(),
+  instanceNumber: z.number().int().positive().optional().default(1)
 });
 export type CreateExamInput = z.infer<typeof CreateExamSchema>;
 
 export const UpdateExamSchema = CreateExamSchema.partial();
 export type UpdateExamInput = z.infer<typeof UpdateExamSchema>;
+
+export const RestartExamSchema = z.object({
+  mode: z.enum(['separate', 'merge']),
+  title: z.string().optional()
+});
+export type RestartExamInput = z.infer<typeof RestartExamSchema>;
+
+export const SecurityEventSchema = z.object({
+  eventType: z.enum(['fullscreen_exit', 'tab_switch', 'window_blur', 'devtools_opened', 'shortcut_blocked', 'clipboard_attempt']),
+  details: z.string().optional()
+});
+export type SecurityEventInput = z.infer<typeof SecurityEventSchema>;
 
 export const ExtendExamSchema = z.object({
   minutes: z.number().int().positive('Minutes to extend must be positive')
@@ -82,6 +97,8 @@ export interface StudentAttemptResponse {
   questions: StudentQuestionItem[];
   answers: Record<string, string | null>;
   tabSwitches?: number;
+  securityViolations?: number;
+  requireSafeBrowser?: boolean;
 }
 
 export const SaveAnswerSchema = z.object({

@@ -15,7 +15,7 @@ import { AuthMeResponse } from '@nptel/shared';
 export default function AdminApp() {
   const { data: auth, refetch, isLoading } = useQuery<AuthMeResponse>({
     queryKey: ['adminAuthMe'],
-    queryFn: () => api.get('/auth/me'),
+    queryFn: () => api.get('/auth/me?role=admin'),
     retry: false
   });
 
