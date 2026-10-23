@@ -37,6 +37,21 @@ export interface StudentAnalysisResponse {
   total: number;
   passed: boolean;
   gradeLabel: string;
+  goodAtTopics: {
+    topic: string;
+    subtopic?: string;
+    pct: number;
+    correct: number;
+    total: number;
+  }[];
+  leftToLearnTopics: {
+    topic: string;
+    subtopic?: string;
+    pct: number;
+    correct: number;
+    total: number;
+    recommendation: string;
+  }[];
   topicScores: TopicScoreItem[];
   focusAreas: {
     topic: string;
@@ -73,6 +88,9 @@ export interface ExamResultRow {
   total: number;
   passed: boolean;
   gradeLabel: string;
+  goodAtTopics?: string[];
+  leftToLearnTopics?: string[];
+  topicScores?: { topic: string; pct: number; level: PerformanceLevel }[];
 }
 
 export const UpdateScoringSchema = z.object({

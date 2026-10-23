@@ -13,21 +13,21 @@ import {
 } from '@nptel/shared';
 
 /**
- * Shared service function to compute results for an exam
+ * Shared service function to compute results for a SINGLE attempt and persist:
+ * - results record (score, grade, passed, raw)
+ * - topicScores records (topic, subtopic, correct, total, pct, level: strong/average/weak)
  */
-export async function computeExamResults(examId: string): Promise<{ computedCount: number }> {
-  const [exam] = await db.select().from(schema.exams).where(eq(schema.exams.id, examId)).limit(1);
-  if (!exam) throw new AppError(404, 'NOT_FOUND', 'Exam not found');
+export async function computeAttemptResults(attemptId: string): Promise<boolean> {
+  const [attempt] = await db.select().from(schema.attempts).where(eq(schema.attempts.id, attemptId)).limit(1);
+  if (!attempt) return false;
 
-  const attempts = await db.select().from(schema.attempts).where(eq(schema.attempts.examId, examId));
-  if (attempts.length === 0) {
-    return { computedCount: 0 };
-  }
+  const [exam] = await db.select().from(schema.exams).where(eq(schema.exams.id, attempt.examId)).limit(1);
+  if (!exam) return false;
 
-  // Pre-fetch all questions for the exam
+  // Pre-fetch all questions for this exam
   const poolQuestions = await db.select().from(schema.questions)
     .innerJoin(schema.examQuestions, eq(schema.questions.id, schema.examQuestions.questionId))
-    .where(eq(schema.examQuestions.examId, examId));
+    .where(eq(schema.examQuestions.examId, exam.id));
 
   const questionMap = new Map(poolQuestions.map(p => [p.questions.id, p.questions]));
 
@@ -46,71 +46,85 @@ export async function computeExamResults(examId: string): Promise<{ computedCoun
     { min: 40, label: 'Successfully Completed' }
   ];
 
-  for (const attempt of attempts) {
-    const qOrder = attempt.questionOrder as { qid: string; options: string[] }[];
-    const userAnswers = await db.select().from(schema.answers).where(eq(schema.answers.attemptId, attempt.id));
-    const ansMap = new Map(userAnswers.map(a => [a.questionId, a.chosen]));
+  const qOrder = attempt.questionOrder as { qid: string; options: string[] }[];
+  const userAnswers = await db.select().from(schema.answers).where(eq(schema.answers.attemptId, attempt.id));
+  const ansMap = new Map(userAnswers.map(a => [a.questionId, a.chosen]));
 
-    let correctCount = 0;
-    let wrongCount = 0;
-    let unansweredCount = 0;
-    let rawScore = 0;
-    let maxRaw = 0;
+  let correctCount = 0;
+  let wrongCount = 0;
+  let unansweredCount = 0;
+  let rawScore = 0;
+  let maxRaw = 0;
 
-    // Topic counters: topicKey -> { topic, subtopic, correct, total }
-    const topicMap = new Map<string, { topic: string; subtopic: string; correct: number; total: number }>();
+  // Topic counters: topicKey -> { topic, subtopic, correct, total }
+  const topicMap = new Map<string, { topic: string; subtopic: string; correct: number; total: number }>();
 
-    for (const item of qOrder) {
-      const q = questionMap.get(item.qid);
-      if (!q) continue;
+  for (const item of qOrder) {
+    const q = questionMap.get(item.qid);
+    if (!q) continue;
 
-      const marks = Number(q.marks || 1);
-      const negative = exam.negativeMarking ? Number(q.negative || 0) : 0;
-      maxRaw += marks;
+    const marks = Number(q.marks || 1);
+    const negative = exam.negativeMarking ? Number(q.negative || 0) : 0;
+    maxRaw += marks;
 
-      const topicKey = `${q.topic}:::${q.subtopic || ''}`;
-      if (!topicMap.has(topicKey)) {
-        topicMap.set(topicKey, { topic: q.topic, subtopic: q.subtopic || '', correct: 0, total: 0 });
-      }
-      const tStat = topicMap.get(topicKey)!;
-      tStat.total += 1;
+    const topicKey = `${q.topic}:::${q.subtopic || ''}`;
+    if (!topicMap.has(topicKey)) {
+      topicMap.set(topicKey, { topic: q.topic, subtopic: q.subtopic || '', correct: 0, total: 0 });
+    }
+    const tStat = topicMap.get(topicKey)!;
+    tStat.total += 1;
 
-      const chosen = ansMap.get(q.id);
-      if (!chosen) {
-        unansweredCount++;
-      } else if (chosen.toLowerCase() === q.correct.toLowerCase()) {
-        correctCount++;
-        rawScore += marks;
-        tStat.correct += 1;
-      } else {
-        wrongCount++;
-        rawScore -= negative;
+    const chosen = ansMap.get(q.id);
+    if (!chosen) {
+      unansweredCount++;
+    } else if (chosen.toLowerCase() === q.correct.toLowerCase()) {
+      correctCount++;
+      rawScore += marks;
+      tStat.correct += 1;
+    } else {
+      wrongCount++;
+      rawScore -= negative;
+    }
+  }
+
+  rawScore = Math.max(0, rawScore);
+  const examScaled = maxRaw > 0 ? (rawScore / maxRaw) * examMax : 0;
+  const total = assignmentMarks + examScaled;
+
+  const passed = total >= passTotal && assignmentMarks >= passAssignmentMin && examScaled >= passExamMin;
+
+  let gradeLabel = 'Not Passed';
+  if (passed) {
+    const sortedTiers = [...gradeTiers].sort((a, b) => b.min - a.min);
+    for (const tier of sortedTiers) {
+      if (total >= tier.min) {
+        gradeLabel = tier.label;
+        break;
       }
     }
+  }
 
-    rawScore = Math.max(0, rawScore);
-    const examScaled = maxRaw > 0 ? (rawScore / maxRaw) * examMax : 0;
-    const total = assignmentMarks + examScaled;
-
-    const passed = total >= passTotal && assignmentMarks >= passAssignmentMin && examScaled >= passExamMin;
-
-    let gradeLabel = 'Not Passed';
-    if (passed) {
-      const sortedTiers = [...gradeTiers].sort((a, b) => b.min - a.min);
-      for (const tier of sortedTiers) {
-        if (total >= tier.min) {
-          gradeLabel = tier.label;
-          break;
-        }
-      }
-    }
-
-    // Upsert Result
-    await db.insert(schema.results)
-      .values({
-        attemptId: attempt.id,
-        examId,
-        studentId: attempt.studentId,
+  // Upsert Result in Database
+  await db.insert(schema.results)
+    .values({
+      attemptId: attempt.id,
+      examId: exam.id,
+      studentId: attempt.studentId,
+      correctCount,
+      wrongCount,
+      unansweredCount,
+      rawScore: String(rawScore),
+      maxRaw: String(maxRaw),
+      examScaled: String(examScaled),
+      assignmentMarks: String(assignmentMarks),
+      total: String(total),
+      passed,
+      gradeLabel,
+      computedAt: new Date()
+    })
+    .onConflictDoUpdate({
+      target: schema.results.attemptId,
+      set: {
         correctCount,
         wrongCount,
         unansweredCount,
@@ -122,54 +136,57 @@ export async function computeExamResults(examId: string): Promise<{ computedCoun
         passed,
         gradeLabel,
         computedAt: new Date()
-      })
-      .onConflictDoUpdate({
-        target: schema.results.attemptId,
-        set: {
-          correctCount,
-          wrongCount,
-          unansweredCount,
-          rawScore: String(rawScore),
-          maxRaw: String(maxRaw),
-          examScaled: String(examScaled),
-          assignmentMarks: String(assignmentMarks),
-          total: String(total),
-          passed,
-          gradeLabel,
-          computedAt: new Date()
-        }
-      });
-
-    // Replace topic scores
-    await db.delete(schema.topicScores).where(eq(schema.topicScores.attemptId, attempt.id));
-
-    const topicInserts = Array.from(topicMap.values()).map(t => {
-      const pct = t.total > 0 ? (t.correct / t.total) * 100 : 0;
-      let level: 'strong' | 'average' | 'weak' = 'average';
-      if (pct >= strongThreshold) level = 'strong';
-      else if (pct < weakThreshold) level = 'weak';
-
-      return {
-        attemptId: attempt.id,
-        topic: t.topic,
-        subtopic: t.subtopic,
-        correct: t.correct,
-        total: t.total,
-        pct: String(pct),
-        level
-      };
+      }
     });
 
-    if (topicInserts.length > 0) {
-      await db.insert(schema.topicScores).values(topicInserts);
-    }
+  // Replace topic scores in Database
+  await db.delete(schema.topicScores).where(eq(schema.topicScores.attemptId, attempt.id));
+
+  const topicInserts = Array.from(topicMap.values()).map(t => {
+    const pct = t.total > 0 ? (t.correct / t.total) * 100 : 0;
+    let level: 'strong' | 'average' | 'weak' = 'average';
+    if (pct >= strongThreshold) level = 'strong';
+    else if (pct < weakThreshold) level = 'weak';
+
+    return {
+      attemptId: attempt.id,
+      topic: t.topic,
+      subtopic: t.subtopic,
+      correct: t.correct,
+      total: t.total,
+      pct: String(pct),
+      level
+    };
+  });
+
+  if (topicInserts.length > 0) {
+    await db.insert(schema.topicScores).values(topicInserts);
+  }
+
+  return true;
+}
+
+/**
+ * Shared service function to compute results for all attempts in an exam
+ */
+export async function computeExamResults(examId: string): Promise<{ computedCount: number }> {
+  const attempts = await db.select({ id: schema.attempts.id })
+    .from(schema.attempts)
+    .where(eq(schema.attempts.examId, examId));
+
+  if (attempts.length === 0) {
+    return { computedCount: 0 };
+  }
+
+  for (const attempt of attempts) {
+    await computeAttemptResults(attempt.id);
   }
 
   return { computedCount: attempts.length };
 }
 
 /**
- * Shared service function to retrieve detailed student analysis (used by results & PDF generator)
+ * Shared service function to retrieve detailed student analysis (used by admin results & PDF generator)
  */
 export async function getStudentAnalysis(examId: string, studentId: string): Promise<StudentAnalysisResponse> {
   const [exam] = await db.select().from(schema.exams).where(eq(schema.exams.id, examId)).limit(1);
@@ -186,7 +203,7 @@ export async function getStudentAnalysis(examId: string, studentId: string): Pro
 
   let [result] = await db.select().from(schema.results).where(eq(schema.results.attemptId, attempt.id)).limit(1);
   if (!result) {
-    await computeExamResults(examId);
+    await computeAttemptResults(attempt.id);
     [result] = await db.select().from(schema.results).where(eq(schema.results.attemptId, attempt.id)).limit(1);
   }
 
@@ -201,6 +218,31 @@ export async function getStudentAnalysis(examId: string, studentId: string): Pro
     level: t.level as any,
     fewQuestions: (t.total || 0) < 2
   }));
+
+  // Topics Good At (Strong: >= strongThreshold)
+  const goodAtTopics = topicScores
+    .filter(t => t.level === 'strong')
+    .sort((a, b) => b.pct - a.pct)
+    .map(t => ({
+      topic: t.topic,
+      subtopic: t.subtopic || undefined,
+      pct: t.pct,
+      correct: t.correct,
+      total: t.total
+    }));
+
+  // Topics Left to Learn (Weak or Average: < strongThreshold, sorted weakest first)
+  const leftToLearnTopics = topicScores
+    .filter(t => t.level === 'weak' || t.level === 'average')
+    .sort((a, b) => a.pct - b.pct)
+    .map(t => ({
+      topic: t.topic,
+      subtopic: t.subtopic || undefined,
+      pct: t.pct,
+      correct: t.correct,
+      total: t.total,
+      recommendation: `Needs practice in ${t.topic}${t.subtopic ? ` (${t.subtopic})` : ''} - scored ${t.pct.toFixed(0)}%`
+    }));
 
   // Focus areas sorted: weak first (lowest pct first), then average
   const focusAreas = [...topicScores]
@@ -257,6 +299,8 @@ export async function getStudentAnalysis(examId: string, studentId: string): Pro
     total: Number(result?.total || 0),
     passed: Boolean(result?.passed),
     gradeLabel: result?.gradeLabel || 'Not Passed',
+    goodAtTopics,
+    leftToLearnTopics,
     topicScores,
     focusAreas,
     wrongQuestions
@@ -273,11 +317,11 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     return reply.send(res);
   });
 
-  // 2. GET /api/admin/exams/:id/results
+  // 2. GET /api/admin/exams/:id/results (with Good At & Left to Learn Topic Analytics)
   fastify.get('/admin/exams/:id/results', async (request, reply) => {
     const { id } = request.params as { id: string };
 
-    const rows = await db.select({
+    const getRows = () => db.select({
       studentId: schema.students.id,
       rollNo: schema.students.rollNo,
       name: schema.students.name,
@@ -297,6 +341,46 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       .where(eq(schema.results.examId, id))
       .orderBy(desc(schema.results.total));
 
+    let rows = await getRows();
+
+    // If no results computed yet but submitted attempts exist, compute now
+    if (rows.length === 0) {
+      const submittedAttempts = await db.select({ id: schema.attempts.id })
+        .from(schema.attempts)
+        .where(and(eq(schema.attempts.examId, id), inArray(schema.attempts.status, ['submitted', 'auto_submitted'])));
+
+      if (submittedAttempts.length > 0) {
+        await computeExamResults(id);
+        rows = await getRows();
+      }
+    }
+
+    // Fetch topic scores for all students in this exam
+    const tScores = await db.select({
+      studentId: schema.attempts.studentId,
+      topic: schema.topicScores.topic,
+      pct: schema.topicScores.pct,
+      level: schema.topicScores.level
+    })
+      .from(schema.topicScores)
+      .innerJoin(schema.attempts, eq(schema.topicScores.attemptId, schema.attempts.id))
+      .where(eq(schema.attempts.examId, id));
+
+    const studentTopicMap = new Map<string, { goodAt: string[]; leftToLearn: string[]; scores: { topic: string; pct: number; level: any }[] }>();
+    for (const ts of tScores) {
+      if (!studentTopicMap.has(ts.studentId)) {
+        studentTopicMap.set(ts.studentId, { goodAt: [], leftToLearn: [], scores: [] });
+      }
+      const item = studentTopicMap.get(ts.studentId)!;
+      const pctNum = Number(ts.pct || 0);
+      item.scores.push({ topic: ts.topic, pct: pctNum, level: ts.level as any });
+      if (ts.level === 'strong') {
+        item.goodAt.push(ts.topic);
+      } else if (ts.level === 'weak' || ts.level === 'average') {
+        item.leftToLearn.push(ts.topic);
+      }
+    }
+
     const totalAttempts = rows.length;
     let passedCount = 0;
     const totals: number[] = [];
@@ -305,6 +389,8 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       const tot = Number(r.total || 0);
       totals.push(tot);
       if (r.passed) passedCount++;
+
+      const tData = studentTopicMap.get(r.studentId);
 
       return {
         studentId: r.studentId,
@@ -319,7 +405,10 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         assignmentMarks: Number(r.assignmentMarks || 0),
         total: tot,
         passed: Boolean(r.passed),
-        gradeLabel: r.gradeLabel || 'Not Passed'
+        gradeLabel: r.gradeLabel || 'Not Passed',
+        goodAtTopics: tData?.goodAt || [],
+        leftToLearnTopics: tData?.leftToLearn || [],
+        topicScores: tData?.scores || []
       };
     });
 
@@ -430,7 +519,7 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'NPTEL Mock Exam Portal';
 
-    // Sheet 1: Results
+    // Sheet 1: Results with Good At & Left to Learn
     const resSheet = workbook.addWorksheet('Results');
     resSheet.columns = [
       { header: 'Roll No', key: 'rollNo', width: 15 },
@@ -443,11 +532,14 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       { header: 'Assignment (25)', key: 'assignment', width: 15 },
       { header: 'Total (100)', key: 'total', width: 15 },
       { header: 'Status', key: 'status', width: 12 },
-      { header: 'Grade Tier', key: 'grade', width: 25 }
+      { header: 'Grade Tier', key: 'grade', width: 25 },
+      { header: 'Topics Good At', key: 'goodAt', width: 35 },
+      { header: 'Topics Left to Learn', key: 'leftToLearn', width: 35 }
     ];
     resSheet.getRow(1).font = { bold: true };
 
     const resultsRows = await db.select({
+      studentId: schema.students.id,
       rollNo: schema.students.rollNo,
       name: schema.students.name,
       correct: schema.results.correctCount,
@@ -465,7 +557,36 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       .where(eq(schema.results.examId, id))
       .orderBy(desc(schema.results.total));
 
+    const allTopicScores = await db.select({
+      studentId: schema.attempts.studentId,
+      topic: schema.topicScores.topic,
+      pct: schema.topicScores.pct,
+      level: schema.topicScores.level
+    })
+      .from(schema.topicScores)
+      .innerJoin(schema.attempts, eq(schema.topicScores.attemptId, schema.attempts.id))
+      .where(eq(schema.attempts.examId, id));
+
+    const topicSummaryMap = new Map<string, { good: string[]; left: string[]; all: Record<string, number> }>();
+    const allTopicsSet = new Set<string>();
+
+    for (const ts of allTopicScores) {
+      allTopicsSet.add(ts.topic);
+      if (!topicSummaryMap.has(ts.studentId)) {
+        topicSummaryMap.set(ts.studentId, { good: [], left: [], all: {} });
+      }
+      const entry = topicSummaryMap.get(ts.studentId)!;
+      const pctVal = Number(ts.pct || 0);
+      entry.all[ts.topic] = pctVal;
+      if (ts.level === 'strong') {
+        entry.good.push(`${ts.topic} (${pctVal.toFixed(0)}%)`);
+      } else if (ts.level === 'weak' || ts.level === 'average') {
+        entry.left.push(`${ts.topic} (${pctVal.toFixed(0)}%)`);
+      }
+    }
+
     for (const r of resultsRows) {
+      const tInfo = topicSummaryMap.get(r.studentId);
       resSheet.addRow({
         rollNo: r.rollNo,
         name: r.name,
@@ -477,8 +598,32 @@ const resultsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
         assignment: Number(r.assignment).toFixed(2),
         total: Number(r.total).toFixed(2),
         status: r.passed ? 'PASSED' : 'FAILED',
-        grade: r.grade
+        grade: r.grade,
+        goodAt: tInfo?.good?.join(', ') || 'None',
+        leftToLearn: tInfo?.left?.join(', ') || 'None'
       });
+    }
+
+    // Sheet 2: Topic Analytics Matrix
+    const matrixSheet = workbook.addWorksheet('Topic Analytics');
+    const sortedTopics = Array.from(allTopicsSet).sort();
+    matrixSheet.columns = [
+      { header: 'Roll No', key: 'rollNo', width: 15 },
+      { header: 'Student Name', key: 'name', width: 25 },
+      ...sortedTopics.map(t => ({ header: `${t} (%)`, key: t, width: 18 }))
+    ];
+    matrixSheet.getRow(1).font = { bold: true };
+
+    for (const r of resultsRows) {
+      const tInfo = topicSummaryMap.get(r.studentId);
+      const rowData: Record<string, any> = {
+        rollNo: r.rollNo,
+        name: r.name
+      };
+      for (const t of sortedTopics) {
+        rowData[t] = tInfo?.all[t] !== undefined ? `${tInfo.all[t].toFixed(0)}%` : '—';
+      }
+      matrixSheet.addRow(rowData);
     }
 
     reply.header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

@@ -10,6 +10,7 @@ import {
   ExamTimeConfig
 } from '../../lib/time.js';
 import { generateQuestionOrder } from '../../lib/shuffle.js';
+import { computeAttemptResults } from '../results/index.js';
 import {
   SaveAnswerSchema,
   StudentHomeResponse,
@@ -220,6 +221,7 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
         .set({ status: 'auto_submitted', submittedAt: attempt.deadlineAt })
         .where(eq(schema.attempts.id, attempt.id));
       attempt.status = 'auto_submitted';
+      await computeAttemptResults(attempt.id);
     }
 
     const remainingSeconds = calculateRemainingSeconds(attempt.deadlineAt, now);
@@ -351,6 +353,8 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
           submittedAt: new Date()
         })
         .where(eq(schema.attempts.id, id));
+
+      await computeAttemptResults(id);
     }
 
     return reply.send({ status: 'submitted' });

@@ -14,6 +14,7 @@ import {
   MonitorResponse,
   MonitorStudentRow
 } from '@nptel/shared';
+import { computeExamResults, computeAttemptResults } from '../results/index.js';
 
 const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.addHook('preHandler', requireRole('admin'));
@@ -230,6 +231,9 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
         eq(schema.attempts.status, 'in_progress')
       ));
 
+    // Compute and save results & topic analytics for all finished attempts
+    await computeExamResults(id);
+
     await db.insert(schema.auditLog).values({
       actor: request.sessionUser!.username || request.sessionUser!.name,
       action: 'EXAM_STOP',
@@ -374,6 +378,7 @@ const adminExamsRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       .returning();
 
     if (!updated) throw new AppError(404, 'NOT_FOUND', 'Attempt not found');
+    await computeAttemptResults(id);
     return reply.send({ success: true, status: updated.status });
   });
 

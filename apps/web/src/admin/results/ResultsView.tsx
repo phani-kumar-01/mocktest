@@ -20,6 +20,9 @@ export default function ResultsView() {
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [assignmentMarksInput, setAssignmentMarksInput] = useState(20);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [topicFilter, setTopicFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   // Exams list for dropdown
   const { data: exams = [] } = useQuery({
@@ -46,7 +49,7 @@ export default function ResultsView() {
   const { data: matrixData } = useQuery({
     queryKey: ['adminTopicMatrix', selectedExamId],
     queryFn: () => api.get(`/admin/exams/${selectedExamId}/topic-matrix`),
-    enabled: !!selectedExamId && activeTab === 'heatmap'
+    enabled: !!selectedExamId && (activeTab === 'heatmap' || activeTab === 'table' || activeTab === 'charts')
   });
 
   // Mail Status Query
@@ -99,15 +102,36 @@ export default function ResultsView() {
   };
 
   const summary = resultsData?.summary;
-  const rows = resultsData?.rows || [];
+  const rawRows = resultsData?.rows || [];
+
+  // Filter rows by search term, status, or topic weakness
+  const filteredRows = rawRows.filter((r: any) => {
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      if (!r.rollNo.toLowerCase().includes(q) && !r.name.toLowerCase().includes(q)) {
+        return false;
+      }
+    }
+    if (statusFilter === 'passed' && !r.passed) return false;
+    if (statusFilter === 'failed' && r.passed) return false;
+
+    if (topicFilter) {
+      const hasWeakness = r.leftToLearnTopics?.some((t: string) => t.toLowerCase() === topicFilter.toLowerCase());
+      const isGood = r.goodAtTopics?.some((t: string) => t.toLowerCase() === topicFilter.toLowerCase());
+      if (!hasWeakness && !isGood) return false;
+    }
+    return true;
+  });
+
+  const allTopics = matrixData?.topics || [];
 
   return (
     <div className="space-y-6 bg-white text-black">
       {/* Header & Exam Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black pb-4">
         <div>
-          <h1 className="text-2xl font-bold uppercase tracking-tight text-black">Results & Analytics</h1>
-          <p className="text-neutral-600 text-sm">NPTEL scoring, grade tier distribution, and topic mastery</p>
+          <h1 className="text-2xl font-bold uppercase tracking-tight text-black">Student Performance & Sub-Analytics</h1>
+          <p className="text-neutral-600 text-sm">Automated evaluation: student mastery, topics good at, and topics left to learn</p>
         </div>
 
         <div className="flex items-center space-x-3">
@@ -185,7 +209,7 @@ export default function ResultsView() {
           onClick={() => setActiveTab('table')}
           className={`pb-3 transition-colors ${activeTab === 'table' ? 'border-b-2 border-black text-black' : 'text-neutral-500 hover:text-black'}`}
         >
-          Results Table ({rows.length})
+          Student Analytics Table ({rawRows.length})
         </button>
         <button
           onClick={() => setActiveTab('heatmap')}
@@ -207,54 +231,129 @@ export default function ResultsView() {
         </button>
       </div>
 
-      {/* Tab 1: Results Table */}
+      {/* Tab 1: Student Analytics Table with Good At & Left to Learn topics */}
       {activeTab === 'table' && (
-        <div className="bg-white rounded border border-black overflow-hidden">
-          <table className="w-full text-left text-sm text-black">
-            <thead className="bg-neutral-100 text-xs text-black font-bold border-b border-black uppercase">
-              <tr>
-                <th className="py-3 px-4">Roll Number</th>
-                <th className="py-3 px-4">Name</th>
-                <th className="py-3 px-4 text-center">Correct / Wrong</th>
-                <th className="py-3 px-4">Scaled (75)</th>
-                <th className="py-3 px-4">Assignment (25)</th>
-                <th className="py-3 px-4 font-bold">Total (100)</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4">Grade Tier</th>
-                <th className="py-3 px-4 text-right">Analysis</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y border-b border-black">
-              {rows.map((r: any) => (
-                <tr key={r.studentId} className="hover:bg-neutral-50">
-                  <td className="py-3 px-4 font-mono font-bold text-black">{r.rollNo}</td>
-                  <td className="py-3 px-4 font-medium text-black">{r.name}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className="text-black font-bold">{r.correctCount}</span>
-                    <span className="text-neutral-400 mx-1">/</span>
-                    <span className="text-black font-semibold">{r.wrongCount}</span>
-                  </td>
-                  <td className="py-3 px-4 font-mono">{r.examScaled.toFixed(2)}</td>
-                  <td className="py-3 px-4 font-mono">{r.assignmentMarks}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-black text-base">{r.total.toFixed(2)}</td>
-                  <td className="py-3 px-4">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded border border-black uppercase ${r.passed ? 'bg-black text-white' : 'bg-neutral-100 text-black'}`}>
-                      {r.passed ? 'PASSED' : 'NOT PASSED'}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-xs font-semibold text-black">{r.gradeLabel}</td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => setSelectedStudentId(r.studentId)}
-                      className="text-xs text-black hover:text-neutral-600 font-bold underline"
-                    >
-                      View Report
-                    </button>
-                  </td>
+        <div className="space-y-4">
+          {/* Filter Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-neutral-50 border border-black rounded">
+            <div className="flex items-center space-x-3 flex-1 max-w-lg">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Search by student name or roll number..."
+                className="w-full px-3.5 py-1.5 border border-black rounded text-xs bg-white text-black"
+              />
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <select
+                value={topicFilter}
+                onChange={e => setTopicFilter(e.target.value)}
+                className="px-3 py-1.5 border border-black rounded text-xs bg-white text-black font-semibold"
+              >
+                <option value="">All Topics</option>
+                {allTopics.map((t: string) => (
+                  <option key={t} value={t}>Topic: {t}</option>
+                ))}
+              </select>
+
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="px-3 py-1.5 border border-black rounded text-xs bg-white text-black font-semibold"
+              >
+                <option value="">All Results</option>
+                <option value="passed">Passed Only</option>
+                <option value="failed">Not Passed Only</option>
+              </select>
+
+              <span className="text-xs text-neutral-600 font-bold">Showing {filteredRows.length} / {rawRows.length}</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded border border-black overflow-hidden">
+            <table className="w-full text-left text-xs text-black">
+              <thead className="bg-neutral-100 text-xs text-black font-bold border-b border-black uppercase">
+                <tr>
+                  <th className="py-3 px-3">Roll No</th>
+                  <th className="py-3 px-3">Student Name</th>
+                  <th className="py-3 px-2 text-center">Score</th>
+                  <th className="py-3 px-2">Status</th>
+                  <th className="py-3 px-4 min-w-[200px]">🏆 Topics Good At (Mastered)</th>
+                  <th className="py-3 px-4 min-w-[220px]">⚠️ Left to Learn (Needs Revision)</th>
+                  <th className="py-3 px-3 text-right">Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y border-b border-black">
+                {filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-neutral-500 font-bold">
+                      No student results found matching filter criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map((r: any) => (
+                    <tr key={r.studentId} className="hover:bg-neutral-50">
+                      <td className="py-3 px-3 font-mono font-bold text-black">{r.rollNo}</td>
+                      <td className="py-3 px-3 font-semibold text-black">
+                        <div>{r.name}</div>
+                        <div className="text-[10px] text-neutral-500">{r.correctCount} Correct, {r.wrongCount} Wrong, {r.unansweredCount} Left</div>
+                      </td>
+                      <td className="py-3 px-2 text-center font-mono font-bold text-sm">
+                        {r.total.toFixed(1)} <span className="text-[10px] text-neutral-500 font-normal">/ 100</span>
+                      </td>
+                      <td className="py-3 px-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border border-black uppercase ${r.passed ? 'bg-black text-white' : 'bg-neutral-100 text-black'}`}>
+                          {r.passed ? 'PASS' : 'FAIL'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          {r.goodAtTopics && r.goodAtTopics.length > 0 ? (
+                            r.goodAtTopics.map((topic: string) => (
+                              <span
+                                key={topic}
+                                className="px-2 py-0.5 rounded bg-black text-white font-semibold text-[11px] inline-flex items-center"
+                              >
+                                ✓ {topic}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-neutral-400 italic text-[11px]">— No topics above 70%</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          {r.leftToLearnTopics && r.leftToLearnTopics.length > 0 ? (
+                            r.leftToLearnTopics.map((topic: string) => (
+                              <span
+                                key={topic}
+                                className="px-2 py-0.5 rounded bg-neutral-100 text-black border border-black font-semibold text-[11px] inline-flex items-center"
+                              >
+                                ⚠ {topic}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-black font-bold text-[11px]">✓ Mastered all topics!</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <button
+                          onClick={() => setSelectedStudentId(r.studentId)}
+                          className="px-2.5 py-1 bg-white hover:bg-neutral-100 border border-black text-black text-xs font-bold rounded shadow-none"
+                        >
+                          Detailed Report →
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -262,7 +361,7 @@ export default function ResultsView() {
       {activeTab === 'heatmap' && matrixData && (
         <div className="bg-white rounded border border-black p-5 space-y-4">
           <div className="flex items-center justify-between text-xs text-neutral-600 pb-2 border-b border-black font-semibold">
-            <span>Guide: Black (≥70% Strong), Gray (50–69% Average), White/Light (&lt;50% Weak).</span>
+            <span>Guide: Black (≥70% Strong - Good At), Gray (50–69% Average), White/Light (&lt;50% Weak - Left to Learn).</span>
             <span>{matrixData.rows?.length} Students × {matrixData.topics?.length} Topics</span>
           </div>
 
@@ -401,62 +500,171 @@ export default function ResultsView() {
         </div>
       )}
 
-      {/* Student Drilldown Drawer */}
+      {/* Complete Student Sub-Analytics Drilldown Drawer */}
       {selectedStudentId && studentAnalysis && (
         <div className="fixed inset-0 z-50 bg-black/60 flex justify-end">
-          <div className="bg-white w-full max-w-2xl h-full border-l-2 border-black p-6 overflow-y-auto space-y-6 text-black">
+          <div className="bg-white w-full max-w-3xl h-full border-l-2 border-black p-6 overflow-y-auto space-y-6 text-black">
+            {/* Header */}
             <div className="flex items-center justify-between pb-4 border-b border-black">
               <div>
-                <h3 className="text-xl font-bold text-black uppercase">{studentAnalysis.studentName}</h3>
-                <p className="text-xs font-mono text-neutral-600">Roll No: {studentAnalysis.rollNo}</p>
+                <h3 className="text-xl font-black text-black uppercase tracking-tight">{studentAnalysis.studentName}</h3>
+                <p className="text-xs font-mono text-neutral-600">Roll No: {studentAnalysis.rollNo} | Exam: {studentAnalysis.examTitle}</p>
               </div>
               <div className="flex items-center space-x-3">
                 <a
                   href={`/api/admin/exams/${selectedExamId}/students/${selectedStudentId}/report.pdf`}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-1.5 bg-black text-white rounded text-xs font-bold border border-black hover:bg-neutral-800"
+                  className="px-3.5 py-1.5 bg-black text-white rounded text-xs font-bold border border-black hover:bg-neutral-800 transition-colors"
                 >
-                  Download PDF
+                  📄 Download PDF
                 </a>
-                <button onClick={() => setSelectedStudentId(null)} className="text-xl font-bold p-1">✕</button>
+                <button onClick={() => setSelectedStudentId(null)} className="text-xl font-bold p-1 hover:text-neutral-500">✕</button>
               </div>
             </div>
 
-            {/* Score Box */}
-            <div className="bg-neutral-50 p-4 rounded border border-black flex justify-between items-center text-center">
-              <div><span className="text-xs text-neutral-500 uppercase font-bold">Assignment</span><p className="text-lg font-bold">{studentAnalysis.assignmentMarks} / 25</p></div>
-              <div><span className="text-xs text-neutral-500 uppercase font-bold">Scaled Exam</span><p className="text-lg font-bold">{studentAnalysis.examScaled.toFixed(2)} / 75</p></div>
-              <div><span className="text-xs text-neutral-500 uppercase font-bold">Total</span><p className="text-2xl font-black text-black">{studentAnalysis.total.toFixed(2)}</p></div>
-              <div><span className="text-xs text-neutral-500 uppercase font-bold">Tier</span><p className="text-sm font-bold text-black">{studentAnalysis.gradeLabel}</p></div>
+            {/* Score Summary Box */}
+            <div className="bg-neutral-50 p-4 rounded border border-black grid grid-cols-4 gap-2 text-center">
+              <div><span className="text-[11px] text-neutral-500 uppercase font-bold">Assignment</span><p className="text-base font-bold text-black">{studentAnalysis.assignmentMarks} / 25</p></div>
+              <div><span className="text-[11px] text-neutral-500 uppercase font-bold">Scaled Exam</span><p className="text-base font-bold text-black">{studentAnalysis.examScaled.toFixed(2)} / 75</p></div>
+              <div><span className="text-[11px] text-neutral-500 uppercase font-bold">Total Score</span><p className="text-2xl font-black text-black">{studentAnalysis.total.toFixed(2)}</p></div>
+              <div><span className="text-[11px] text-neutral-500 uppercase font-bold">Grade & Status</span><p className="text-xs font-bold text-black uppercase mt-1">{studentAnalysis.passed ? '✓ PASSED' : '✕ FAILED'}</p><p className="text-[11px] text-neutral-600 font-semibold">{studentAnalysis.gradeLabel}</p></div>
             </div>
 
-            {/* Focus Areas */}
-            {studentAnalysis.focusAreas?.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-bold text-black text-sm uppercase">Key Weak Topics</h4>
-                <div className="space-y-1">
-                  {studentAnalysis.focusAreas.map((f: any, i: number) => (
-                    <div key={i} className="text-xs bg-white text-black p-2 rounded border border-black flex justify-between">
-                      <span>• {f.recommendation}</span>
-                      <span className="font-bold">{f.pct.toFixed(0)}%</span>
+            {/* 1. WHAT TOPICS DID HE GOOD AT (Mastered Topics) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-black text-sm uppercase flex items-center">
+                  <span className="w-2.5 h-2.5 rounded-full bg-black mr-2"></span>
+                  🏆 Topics Good At (Mastered / High Performance)
+                </h4>
+                <span className="text-xs font-bold text-neutral-600">{studentAnalysis.goodAtTopics?.length || 0} Topics</span>
+              </div>
+
+              {studentAnalysis.goodAtTopics && studentAnalysis.goodAtTopics.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {studentAnalysis.goodAtTopics.map((g: any, i: number) => (
+                    <div key={i} className="p-3 bg-neutral-900 text-white rounded border border-black flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-xs uppercase text-white">{g.topic}</p>
+                        {g.subtopic && <p className="text-[11px] text-neutral-300">{g.subtopic}</p>}
+                        <p className="text-[10px] text-neutral-400 mt-1">{g.correct} of {g.total} correct</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-black text-white">{g.pct.toFixed(0)}%</span>
+                        <span className="block text-[10px] text-neutral-300 font-bold uppercase">Strong</span>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="p-3 bg-neutral-100 rounded border border-black text-xs text-neutral-600 italic">
+                  No topics reached the 70% mastery threshold. Needs general revision across the syllabus.
+                </div>
+              )}
+            </div>
 
-            {/* Wrong Questions */}
+            {/* 2. WHAT HE LEFT LEARN (Topics Left to Learn / Weak Areas) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-black text-sm uppercase flex items-center">
+                  <span className="w-2.5 h-2.5 rounded-full bg-neutral-400 mr-2"></span>
+                  ⚠️ What He Left to Learn (Needs Revision & Practice)
+                </h4>
+                <span className="text-xs font-bold text-neutral-600">{studentAnalysis.leftToLearnTopics?.length || 0} Areas</span>
+              </div>
+
+              {studentAnalysis.leftToLearnTopics && studentAnalysis.leftToLearnTopics.length > 0 ? (
+                <div className="space-y-2">
+                  {studentAnalysis.leftToLearnTopics.map((l: any, i: number) => (
+                    <div key={i} className="p-3 bg-white text-black rounded border border-black flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <p className="font-bold text-xs uppercase text-black">{l.topic} {l.subtopic ? `→ ${l.subtopic}` : ''}</p>
+                        <p className="text-xs text-neutral-600 font-medium">{l.recommendation}</p>
+                        <p className="text-[10px] text-neutral-500">{l.correct} of {l.total} questions answered correctly</p>
+                      </div>
+                      <div className="text-right pl-4">
+                        <span className={`text-base font-black ${l.pct < 50 ? 'text-black font-extrabold' : 'text-neutral-700'}`}>
+                          {l.pct.toFixed(0)}%
+                        </span>
+                        <span className="block text-[10px] uppercase font-bold text-neutral-500">
+                          {l.pct < 50 ? 'Critical' : 'Moderate'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 bg-neutral-100 rounded border border-black text-xs text-black font-bold">
+                  ✓ Perfect topic coverage! No weak areas identified.
+                </div>
+              )}
+            </div>
+
+            {/* 3. Comprehensive Topic Breakdown Table */}
+            <div className="space-y-3">
+              <h4 className="font-bold text-black text-sm uppercase">Full Topic-by-Topic Sub-Analytics</h4>
+              <div className="border border-black rounded overflow-hidden">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-neutral-100 font-bold border-b border-black uppercase">
+                    <tr>
+                      <th className="p-2">Topic</th>
+                      <th className="p-2">Subtopic</th>
+                      <th className="p-2 text-center">Correct / Total</th>
+                      <th className="p-2 text-center">Score %</th>
+                      <th className="p-2 text-right">Mastery Level</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y border-b border-black">
+                    {studentAnalysis.topicScores?.map((ts: any, i: number) => (
+                      <tr key={i} className="hover:bg-neutral-50">
+                        <td className="p-2 font-bold text-black">{ts.topic}</td>
+                        <td className="p-2 text-neutral-600">{ts.subtopic || '—'}</td>
+                        <td className="p-2 text-center font-mono">{ts.correct} / {ts.total}</td>
+                        <td className="p-2 text-center font-mono font-bold">{ts.pct.toFixed(0)}%</td>
+                        <td className="p-2 text-right">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-black ${
+                            ts.level === 'strong'
+                              ? 'bg-black text-white'
+                              : ts.level === 'weak'
+                              ? 'bg-neutral-100 text-black'
+                              : 'bg-neutral-200 text-black'
+                          }`}>
+                            {ts.level}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 4. Missed & Unanswered Questions Review */}
             {studentAnalysis.wrongQuestions?.length > 0 && (
               <div className="space-y-3">
-                <h4 className="font-bold text-black text-sm uppercase">Wrong Questions Review</h4>
-                <div className="space-y-3">
+                <h4 className="font-bold text-black text-sm uppercase">
+                  Missed / Left Unanswered Questions ({studentAnalysis.wrongQuestions.length})
+                </h4>
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                   {studentAnalysis.wrongQuestions.map((w: any, i: number) => (
-                    <div key={i} className="p-3 bg-neutral-50 rounded border border-black space-y-1 text-xs">
-                      <p className="font-bold text-black">Q{i + 1}. [{w.topic}] {w.bodyMd}</p>
-                      <p className="text-neutral-700">Student chosen: {w.studentAnswer ? `Option ${w.studentAnswer.toUpperCase()}` : 'Unanswered'}</p>
-                      <p className="text-black font-bold">Correct: Option {w.correctAnswer.toUpperCase()}</p>
-                      {w.explanationMd && <p className="text-neutral-600">Explanation: {w.explanationMd}</p>}
+                    <div key={i} className="p-3 bg-neutral-50 rounded border border-black space-y-1.5 text-xs">
+                      <div className="flex justify-between font-bold text-black">
+                        <span>Q{i + 1}. Topic: {w.topic} {w.subtopic ? `(${w.subtopic})` : ''}</span>
+                        <span className={w.studentAnswer ? 'text-black' : 'text-neutral-500'}>
+                          {w.studentAnswer ? `Answered: [${w.studentAnswer.toUpperCase()}]` : 'Left Unanswered'}
+                        </span>
+                      </div>
+                      <p className="text-neutral-900 leading-relaxed">{w.bodyMd}</p>
+                      {w.codeSnippet && (
+                        <pre className="p-2 bg-white rounded border border-neutral-300 font-mono text-[11px] overflow-x-auto">
+                          {w.codeSnippet}
+                        </pre>
+                      )}
+                      <p className="font-bold text-black">✓ Correct Answer: Option {w.correctAnswer.toUpperCase()}</p>
+                      {w.explanationMd && (
+                        <p className="text-neutral-600 italic">Explanation: {w.explanationMd}</p>
+                      )}
                     </div>
                   ))}
                 </div>
