@@ -28,7 +28,10 @@ export function createMailerTransport() {
     host,
     port,
     secure: port === 465,
-    auth: user && pass ? { user, pass } : undefined
+    auth: user && pass ? { user, pass } : undefined,
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 10000
   });
 }
 
@@ -39,45 +42,116 @@ export async function sendEmail(options: {
   html: string;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }): Promise<{ id?: string }> {
-  // 1. If Gmail App credentials provided, prioritize Gmail
+  // 1. If Brevo REST API Key is configured (starts with xkeysib- or in BREVO_API_KEY)
+  // Uses HTTPS port 443 — NEVER blocked by Render or other cloud providers
+  const brevoApiKey = process.env.BREVO_API_KEY || (process.env.SMTP_PASS?.startsWith('xkeysib-') ? process.env.SMTP_PASS : undefined);
+  if (brevoApiKey) {
+    try {
+      const fromStr = process.env.MAIL_FROM || 'elite@sasi.ac.in';
+      const match = fromStr.match(/(?:"?([^"]*)"?\s)?(?:<?(.+@[^>]+)>?)/);
+      const senderName = match ? (match[1] || 'NPTEL Mock Exam Portal') : 'NPTEL Mock Exam Portal';
+      const senderEmail = match ? (match[2] || 'elite@sasi.ac.in') : 'elite@sasi.ac.in';
+
+      const payload: any = {
+        sender: { name: senderName, email: senderEmail },
+        to: [{ email: options.to }],
+        subject: options.subject,
+        htmlContent: options.html,
+        textContent: options.text
+      };
+
+      if (options.attachments && options.attachments.length > 0) {
+        payload.attachment = options.attachments.map(a => ({
+          name: a.filename,
+          content: a.content.toString('base64')
+        }));
+      }
+
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': brevoApiKey,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Brevo HTTP API (${res.status}): ${errText}`);
+      }
+
+      const data: any = await res.json();
+      return { id: data?.messageId };
+    } catch (err: any) {
+      console.warn('Brevo REST API failed:', err.message);
+      if (!process.env.RESEND_API_KEY && !process.env.SMTP_USER) throw err;
+    }
+  }
+
+  // 2. If Gmail App credentials provided, prioritize Gmail
   if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
-    const transporter = createMailerTransport();
-    const from = process.env.MAIL_FROM || process.env.GMAIL_USER;
-    const info = await transporter.sendMail({
-      from,
-      to: options.to,
-      subject: options.subject,
-      text: options.text,
-      html: options.html,
-      attachments: options.attachments?.map(a => ({
-        filename: a.filename,
-        content: a.content,
-        contentType: a.contentType
-      }))
-    });
-    return { id: info.messageId };
+    try {
+      const transporter = createMailerTransport();
+      const from = process.env.MAIL_FROM || process.env.GMAIL_USER;
+      const info = await transporter.sendMail({
+        from,
+        to: options.to,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+        attachments: options.attachments?.map(a => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType
+        }))
+      });
+      return { id: info.messageId };
+    } catch (err: any) {
+      console.warn('Gmail SMTP failed:', err.message);
+      if (!process.env.RESEND_API_KEY) throw err;
+    }
   }
 
-  // 2. If Brevo / Custom SMTP credentials provided, prioritize SMTP
-  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-    const transporter = createMailerTransport();
-    const from = process.env.MAIL_FROM || 'elite@sasi.ac.in';
-    const info = await transporter.sendMail({
-      from,
-      to: options.to,
-      subject: options.subject,
-      text: options.text,
-      html: options.html,
-      attachments: options.attachments?.map(a => ({
-        filename: a.filename,
-        content: a.content,
-        contentType: a.contentType
-      }))
-    });
-    return { id: info.messageId };
+  // 3. If Brevo / Custom SMTP credentials provided, try SMTP with timeout protection
+  if (process.env.SMTP_USER && process.env.SMTP_PASS && !process.env.SMTP_PASS.startsWith('xkeysib-')) {
+    try {
+      const transporter = createMailerTransport();
+      const from = process.env.MAIL_FROM || 'elite@sasi.ac.in';
+      const info = await transporter.sendMail({
+        from,
+        to: options.to,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+        attachments: options.attachments?.map(a => ({
+          filename: a.filename,
+          content: a.content,
+          contentType: a.contentType
+        }))
+      });
+      return { id: info.messageId };
+    } catch (smtpErr: any) {
+      console.warn(`SMTP delivery failed: ${smtpErr.message}`);
+      // Fallback to Resend HTTP API if available
+      if (process.env.RESEND_API_KEY) {
+        console.log('Falling back to Resend HTTP API...');
+      } else {
+        const isTimeout = smtpErr.code === 'ETIMEDOUT' || smtpErr.message?.includes('timeout') || smtpErr.code === 'ECONNREFUSED';
+        if (isTimeout) {
+          const smtpPort = process.env.SMTP_PORT || '587';
+          throw new Error(`SMTP connection timed out on port ${smtpPort}. (Note: Render and other cloud hosts block outbound SMTP ports 25, 465, and 587 on free tiers; use Brevo API Key (xkeysib-) or Resend via HTTPS port 443). Details: ${smtpErr.message}`);
+        }
+        if (smtpErr.message?.includes('525') || smtpErr.message?.includes('Unauthorized IP')) {
+          throw new Error(`Brevo rejected server IP. In Brevo Dashboard: Go to Settings -> Security -> Authorized IPs and toggle off "Blocking unauthorized IP addresses", or use a Brevo API Key (xkeysib-). Details: ${smtpErr.message}`);
+        }
+        throw smtpErr;
+      }
+    }
   }
 
-  // 3. If Resend is configured, use Resend
+  // 4. If Resend is configured, use Resend (HTTPS port 443 — works on Render)
   if (process.env.RESEND_API_KEY) {
     const from = process.env.RESEND_FROM || process.env.MAIL_FROM || 'onboarding@resend.dev';
     const resend = new Resend(process.env.RESEND_API_KEY);
@@ -100,7 +174,7 @@ export async function sendEmail(options: {
     return { id: data?.id };
   }
 
-  // 4. Fallback to default localhost SMTP
+  // 5. Fallback to default localhost SMTP
   const transporter = createMailerTransport();
   const from = process.env.MAIL_FROM || 'no-reply@nptel-mock.edu';
   const info = await transporter.sendMail({
