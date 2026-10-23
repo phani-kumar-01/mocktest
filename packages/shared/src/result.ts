@@ -63,6 +63,11 @@ export interface StudentAnalysisResponse {
   total: number;
   passed: boolean;
   gradeLabel: string;
+  totalQuestions?: number;
+  attemptedCount?: number;
+  unansweredCount?: number;
+  correctCount?: number;
+  wrongCount?: number;
   goodAtTopics: {
     topic: string;
     subtopic?: string;

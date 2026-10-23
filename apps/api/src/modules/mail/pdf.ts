@@ -107,6 +107,53 @@ export async function generateStudentReportPdf(examId: string, studentId: string
     doc.x = PAGE_LEFT;
     doc.y = cardY + cardH + 18;
 
+    // ---------- Question Attempt Summary ----------
+    ensureSpace(100);
+    heading('Question Attempt Summary');
+
+    const totalQuestions = analysis.totalQuestions ?? analysis.allQuestions?.length ?? 
+      ((analysis.correctCount ?? 0) + (analysis.wrongCount ?? 0) + (analysis.unansweredCount ?? 0));
+    const attemptedCount = analysis.attemptedCount ?? (
+      analysis.allQuestions
+        ? analysis.allQuestions.filter(q => q.studentAnswer !== null && q.studentAnswer !== '').length
+        : ((analysis.correctCount ?? 0) + (analysis.wrongCount ?? 0))
+    );
+    const unattemptedCount = analysis.unansweredCount ?? (totalQuestions - attemptedCount);
+    const correctCount = analysis.correctCount ?? (
+      analysis.allQuestions ? analysis.allQuestions.filter(q => q.isCorrect).length : 0
+    );
+    const wrongCount = analysis.wrongCount ?? (
+      analysis.allQuestions ? analysis.allQuestions.filter(q => q.studentAnswer && !q.isCorrect).length : 0
+    );
+
+    const attemptCardY = doc.y;
+    const attemptCardH = 55;
+    doc.lineWidth(1).rect(PAGE_LEFT, attemptCardY, PAGE_WIDTH, attemptCardH).fillAndStroke('#ffffff', '#000000');
+
+    const attemptCols = [
+      { x: 50,  w: 92, label: 'Total Questions', value: `${totalQuestions}` },
+      { x: 154, w: 86, label: 'Attempted',       value: `${attemptedCount}` },
+      { x: 252, w: 98, label: 'Left (Unattempted)', value: `${unattemptedCount}` },
+      { x: 362, w: 80, label: 'Correct',         value: `${correctCount}` },
+      { x: 454, w: 88, label: 'Incorrect',       value: `${wrongCount}` },
+    ];
+
+    // Subtle vertical dividers between columns
+    for (let i = 1; i < attemptCols.length; i++) {
+      const divX = attemptCols[i].x - 10;
+      doc.strokeColor('#e5e5e5').lineWidth(0.75)
+        .moveTo(divX, attemptCardY + 8).lineTo(divX, attemptCardY + attemptCardH - 8).stroke();
+    }
+
+    for (const c of attemptCols) {
+      doc.fillColor('#444444').font('Helvetica-Bold').fontSize(9)
+        .text(c.label, c.x, attemptCardY + 12, { width: c.w, lineBreak: false });
+      doc.fillColor('#000000').font('Helvetica-Bold').fontSize(15)
+        .text(c.value, c.x, attemptCardY + 29, { width: c.w });
+    }
+    doc.x = PAGE_LEFT;
+    doc.y = attemptCardY + attemptCardH + 18;
+
     // ---------- Topic table ----------
     heading('Topic Breakdown');
 

@@ -332,12 +332,23 @@ export async function getStudentAnalysis(examId: string, studentId: string): Pro
     isSafeBrowser: attempt.isSafeBrowser !== false
   };
 
+  const correctCount = result?.correctCount ?? allQuestions.filter(q => q.isCorrect).length;
+  const wrongCount = result?.wrongCount ?? allQuestions.filter(q => q.studentAnswer && !q.isCorrect).length;
+  const unansweredCount = result?.unansweredCount ?? allQuestions.filter(q => !q.studentAnswer).length;
+  const totalQuestions = allQuestions.length || (correctCount + wrongCount + unansweredCount);
+  const attemptedCount = correctCount + wrongCount;
+
   return {
     examId: exam.id,
     examTitle: exam.title,
     studentId: student.id,
     rollNo: student.rollNo,
     studentName: student.name,
+    totalQuestions,
+    attemptedCount,
+    unansweredCount,
+    correctCount,
+    wrongCount,
     assignmentMarks: Number(result?.assignmentMarks || 0),
     assignmentMax: Number(exam.assignmentMax || 25),
     examScaled: Number(result?.examScaled || 0),
