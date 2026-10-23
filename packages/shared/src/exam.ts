@@ -83,6 +83,9 @@ export type StudentHomeResponse = z.infer<typeof StudentHomeResponseSchema>;
 export interface StudentQuestionItem {
   index: number;
   qid: string;
+  groupId?: string | null;
+  paragraph?: string | null;
+  concept?: string | null;
   bodyMd: string;
   codeSnippet?: string | null;
   codeLang?: string | null;

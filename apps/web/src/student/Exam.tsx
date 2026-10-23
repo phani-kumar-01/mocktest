@@ -306,13 +306,36 @@ export default function StudentExam({ examTitle, onFinished }: ExamProps) {
             {/* Question Text & Code Snippet */}
             <div className="bg-white rounded border-2 border-black p-6 flex flex-col">
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-black">
-                <span className="font-bold text-black text-sm uppercase">Question {currentIndex + 1}</span>
+                <div className="flex items-center space-x-2">
+                  <span className="font-bold text-black text-sm uppercase">Question {currentIndex + 1}</span>
+                  {currentQ.groupId && (
+                    <span className="bg-black text-white text-[11px] font-mono font-bold px-2 py-0.5 rounded uppercase">
+                      Group {currentQ.groupId}
+                    </span>
+                  )}
+                  {currentQ.concept && (
+                    <span className="text-[11px] bg-neutral-100 text-neutral-800 border border-neutral-300 font-semibold px-2 py-0.5 rounded truncate max-w-xs">
+                      {currentQ.concept}
+                    </span>
+                  )}
+                </div>
                 {isCurrentMarked && (
                   <span className="text-xs font-bold text-black bg-neutral-200 border border-black px-2.5 py-0.5 rounded uppercase">
                     Marked for Review
                   </span>
                 )}
               </div>
+
+              {currentQ.paragraph && (
+                <div className="mb-4 p-4 rounded bg-neutral-50 border border-neutral-300 text-sm leading-relaxed text-neutral-800">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-neutral-500 mb-1">
+                    Scenario / Common Context:
+                  </div>
+                  <div className="prose max-w-none text-sm text-neutral-900 leading-normal">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentQ.paragraph}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
 
               <div className="prose max-w-none text-black text-base leading-relaxed">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{currentQ.bodyMd}</ReactMarkdown>

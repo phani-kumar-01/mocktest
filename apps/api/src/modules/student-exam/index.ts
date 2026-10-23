@@ -280,6 +280,10 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
 
     const qRows = await db.select({
       id: schema.questions.id,
+      groupId: schema.questions.groupId,
+      paragraph: schema.questions.paragraph,
+      concept: schema.questions.concept,
+      topic: schema.questions.topic,
       bodyMd: schema.questions.bodyMd,
       codeSnippet: schema.questions.codeSnippet,
       codeLang: schema.questions.codeLang,
@@ -312,6 +316,9 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
       return {
         index: index + 1,
         qid: item.qid,
+        groupId: q?.groupId || null,
+        paragraph: q?.paragraph || null,
+        concept: q?.concept || null,
         bodyMd: q?.bodyMd || '',
         codeSnippet: q?.codeSnippet,
         codeLang: q?.codeLang,
