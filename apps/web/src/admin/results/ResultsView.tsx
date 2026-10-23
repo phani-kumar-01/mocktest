@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../../lib/api.js';
+import MailDispatchView from '../mail/MailDispatchView.js';
 import {
   BarChart,
   Bar,
@@ -52,14 +53,6 @@ export default function ResultsView() {
     enabled: !!selectedExamId && (activeTab === 'heatmap' || activeTab === 'table' || activeTab === 'charts')
   });
 
-  // Mail Status Query
-  const { data: mailStatus, refetch: refetchMail } = useQuery({
-    queryKey: ['adminMailStatus', selectedExamId],
-    queryFn: () => api.get(`/admin/exams/${selectedExamId}/mail-status`),
-    enabled: !!selectedExamId && activeTab === 'mail',
-    refetchInterval: activeTab === 'mail' ? 4000 : false
-  });
-
   // Student Drilldown Query
   const { data: studentAnalysis } = useQuery({
     queryKey: ['adminStudentAnalysis', selectedExamId, selectedStudentId],
@@ -84,20 +77,10 @@ export default function ResultsView() {
     try {
       await api.post(`/admin/exams/${selectedExamId}/publish`);
       setActiveTab('mail');
-      refetchMail();
     } catch (err: any) {
       alert(err.message || 'Failed to publish results');
     } finally {
       setIsPublishing(false);
-    }
-  };
-
-  const handleRetryFailedMails = async () => {
-    try {
-      await api.post(`/admin/exams/${selectedExamId}/mail/retry-failed`);
-      refetchMail();
-    } catch (err: any) {
-      alert(err.message || 'Failed to retry mails');
     }
   };
 
@@ -441,63 +424,8 @@ export default function ResultsView() {
       )}
 
       {/* Tab 4: Email Queue Status */}
-      {activeTab === 'mail' && mailStatus && (
-        <div className="bg-white rounded border border-black p-6 space-y-5">
-          <div className="flex items-center justify-between pb-4 border-b border-black">
-            <div>
-              <h3 className="font-bold text-black text-lg uppercase">Result Dispatch & Email Queue</h3>
-              <p className="text-xs text-neutral-600">Live background worker status sending PDF report attachments</p>
-            </div>
-
-            <button
-              onClick={handleRetryFailedMails}
-              className="px-4 py-2 bg-black hover:bg-neutral-800 text-white font-bold text-xs rounded border border-black"
-            >
-              ↺ Retry Failed Sends
-            </button>
-          </div>
-
-          {/* Counts */}
-          <div className="grid grid-cols-5 gap-3 text-center">
-            <div className="p-3 rounded bg-white border border-black"><span className="text-xl font-bold">{mailStatus.total}</span><p className="text-xs text-neutral-500 uppercase font-semibold">Total</p></div>
-            <div className="p-3 rounded bg-neutral-100 border border-black"><span className="text-xl font-bold text-black">{mailStatus.pending + mailStatus.sending}</span><p className="text-xs text-black uppercase font-semibold">Queueing / Sending</p></div>
-            <div className="p-3 rounded bg-black text-white border border-black"><span className="text-xl font-bold text-white">{mailStatus.sent}</span><p className="text-xs text-neutral-300 uppercase font-semibold">Delivered</p></div>
-            <div className="p-3 rounded bg-neutral-200 border border-black"><span className="text-xl font-bold text-black">{mailStatus.failed}</span><p className="text-xs text-black uppercase font-semibold">Failed</p></div>
-            <div className="p-3 rounded bg-white border border-black"><span className="text-xl font-bold text-neutral-400">{mailStatus.skipped}</span><p className="text-xs text-neutral-500 uppercase font-semibold">Skipped</p></div>
-          </div>
-
-          {/* Table */}
-          <div className="overflow-x-auto max-h-96 border border-black rounded">
-            <table className="w-full text-left text-xs text-black">
-              <thead className="bg-neutral-100 border-b border-black uppercase font-bold">
-                <tr>
-                  <th className="p-2">Roll No</th>
-                  <th className="p-2">Name</th>
-                  <th className="p-2">Email</th>
-                  <th className="p-2">Status</th>
-                  <th className="p-2">Error / Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y border-b border-black">
-                {mailStatus.students?.map((s: any) => (
-                  <tr key={s.studentId}>
-                    <td className="p-2 font-mono font-bold">{s.rollNo}</td>
-                    <td className="p-2">{s.name}</td>
-                    <td className="p-2 text-neutral-600">{s.email || '—'}</td>
-                    <td className="p-2">
-                      <span className={`px-2 py-0.5 rounded uppercase font-bold text-[10px] border border-black ${
-                        s.status === 'sent' ? 'bg-black text-white' : 'bg-neutral-100 text-black'
-                      }`}>
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="p-2 text-neutral-600 truncate max-w-xs">{s.lastError || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {activeTab === 'mail' && (
+        <MailDispatchView />
       )}
 
       {/* Complete Student Sub-Analytics Drilldown Drawer */}

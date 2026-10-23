@@ -21,6 +21,7 @@ export default function AdminShell({ user, children }: ShellProps) {
     { to: '/admin/exams', label: 'Exams & Schedule', icon: '📝' },
     { to: '/admin/monitor', label: 'Live Monitor', icon: '📡' },
     { to: '/admin/results', label: 'Results & Analytics', icon: '🏆' },
+    { to: '/admin/mail', label: 'Email & Reports', icon: '✉️' },
     { to: '/admin/questions', label: 'Question Bank', icon: '📚' },
     { to: '/admin/students', label: 'Students', icon: '👥' }
   ];

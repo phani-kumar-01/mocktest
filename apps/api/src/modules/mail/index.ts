@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { db, schema } from '../../db/client.js';
 import { requireRole } from '../../lib/session.js';
 import { AppError } from '../../lib/errors.js';
@@ -297,6 +297,142 @@ const mailRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
       return reply.send({ success: true, message: `Test mail successfully sent to ${to}`, id: result.id });
     } catch (err: any) {
       throw new AppError(500, 'MAIL_ERROR', `Failed to send test email: ${err.message}`);
+    }
+  });
+
+  // 6. POST /api/admin/exams/:id/mail/send-selected
+  fastify.post('/admin/exams/:id/mail/send-selected', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { studentIds } = (request.body as { studentIds: string[] }) || {};
+
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      throw new AppError(400, 'INVALID_INPUT', 'At least one student must be selected');
+    }
+
+    const [exam] = await db.select().from(schema.exams).where(eq(schema.exams.id, id)).limit(1);
+    if (!exam) throw new AppError(404, 'NOT_FOUND', 'Exam not found');
+
+    const students = await db.select({
+      studentId: schema.students.id,
+      rollNo: schema.students.rollNo,
+      email: schema.students.email
+    })
+      .from(schema.students)
+      .where(inArray(schema.students.id, studentIds));
+
+    let enqueued = 0;
+    let skipped = 0;
+
+    for (const student of students) {
+      if (!student.email || !student.email.includes('@')) {
+        skipped++;
+        continue;
+      }
+
+      const subject = `Mock Result: ${exam.title} — ${student.rollNo}`;
+
+      await db.insert(schema.mailQueue)
+        .values({
+          examId: id,
+          studentId: student.studentId,
+          toEmail: student.email,
+          subject,
+          status: 'pending',
+          tries: 0,
+          lastError: null
+        })
+        .onConflictDoUpdate({
+          target: [schema.mailQueue.examId, schema.mailQueue.studentId],
+          set: {
+            status: 'pending',
+            tries: 0,
+            lastError: null,
+            toEmail: student.email,
+            subject
+          }
+        });
+
+      enqueued++;
+    }
+
+    return reply.send({ success: true, enqueuedCount: enqueued, skippedNoEmailCount: skipped });
+  });
+
+  // 7. POST /api/admin/exams/:id/students/:studentId/mail/send-now
+  fastify.post('/admin/exams/:id/students/:studentId/mail/send-now', async (request, reply) => {
+    const { id, studentId } = request.params as { id: string; studentId: string };
+
+    const [exam] = await db.select().from(schema.exams).where(eq(schema.exams.id, id)).limit(1);
+    if (!exam) throw new AppError(404, 'NOT_FOUND', 'Exam not found');
+
+    const [student] = await db.select().from(schema.students).where(eq(schema.students.id, studentId)).limit(1);
+    if (!student) throw new AppError(404, 'NOT_FOUND', 'Student not found');
+
+    if (!student.email || !student.email.includes('@')) {
+      throw new AppError(400, 'NO_EMAIL', `Student ${student.rollNo} does not have a valid email address`);
+    }
+
+    const subject = `Mock Result: ${exam.title} — ${student.rollNo}`;
+
+    await db.insert(schema.mailQueue)
+      .values({
+        examId: id,
+        studentId: student.id,
+        toEmail: student.email,
+        subject,
+        status: 'sending',
+        tries: 1
+      })
+      .onConflictDoUpdate({
+        target: [schema.mailQueue.examId, schema.mailQueue.studentId],
+        set: {
+          status: 'sending',
+          toEmail: student.email,
+          subject
+        }
+      });
+
+    try {
+      const pdfBuffer = await generateStudentReportPdf(id, student.id);
+
+      const result = await sendEmail({
+        to: student.email,
+        subject,
+        text: `Dear ${student.name},\n\nPlease find attached your mock exam score and topic performance report.\n\nBest regards,\nNPTEL Mock Exam Team`,
+        html: `<p>Dear <b>${student.name}</b> (Roll No: <b>${student.rollNo}</b>),</p><p>Please find attached your mock exam score and topic performance report.</p><p>Best regards,<br><b>NPTEL Mock Exam Team</b></p>`,
+        attachments: [
+          {
+            filename: `Exam_Performance_Report_${student.rollNo}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          }
+        ]
+      });
+
+      await db.update(schema.mailQueue)
+        .set({
+          status: 'sent',
+          sentAt: new Date(),
+          lastError: null
+        })
+        .where(and(
+          eq(schema.mailQueue.examId, id),
+          eq(schema.mailQueue.studentId, student.id)
+        ));
+
+      return reply.send({ success: true, messageId: result.id, message: `Report successfully delivered to ${student.email}` });
+    } catch (err: any) {
+      await db.update(schema.mailQueue)
+        .set({
+          status: 'failed',
+          lastError: err.message || String(err)
+        })
+        .where(and(
+          eq(schema.mailQueue.examId, id),
+          eq(schema.mailQueue.studentId, student.id)
+        ));
+
+      throw new AppError(500, 'MAIL_DELIVERY_FAILED', `Failed to send email: ${err.message}`);
     }
   });
 };

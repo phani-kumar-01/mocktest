@@ -7,6 +7,7 @@ import DashboardView from './dashboard/DashboardView.js';
 import ExamsView from './exams/ExamsView.js';
 import MonitorView from './monitor/MonitorView.js';
 import ResultsView from './results/ResultsView.js';
+import MailDispatchView from './mail/MailDispatchView.js';
 import QuestionsView from './questions/QuestionsView.js';
 import StudentsView from './students/StudentsView.js';
 import { AuthMeResponse } from '@nptel/shared';
@@ -39,6 +40,7 @@ export default function AdminApp() {
         <Route path="exams" element={<ExamsView />} />
         <Route path="monitor" element={<MonitorView />} />
         <Route path="results" element={<ResultsView />} />
+        <Route path="mail" element={<MailDispatchView />} />
         <Route path="questions" element={<QuestionsView />} />
         <Route path="students" element={<StudentsView />} />
         <Route path="*" element={<Navigate to="dashboard" replace />} />
