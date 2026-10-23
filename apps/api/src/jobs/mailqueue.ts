@@ -1,6 +1,6 @@
 import { eq, and } from 'drizzle-orm';
 import { db, schema } from '../db/client.js';
-import { createMailerTransport } from '../modules/mail/index.js';
+import { sendEmail } from '../modules/mail/index.js';
 import { generateStudentReportPdf } from '../modules/mail/pdf.js';
 
 export interface JobDefinition {
@@ -21,9 +21,6 @@ export const job: JobDefinition = {
 
     if (pendingItems.length === 0) return;
 
-    const transporter = createMailerTransport();
-    const from = process.env.MAIL_FROM || 'no-reply@nptel-mock.edu';
-
     for (const item of pendingItems) {
       // Mark sending
       await db.update(schema.mailQueue)
@@ -34,8 +31,7 @@ export const job: JobDefinition = {
         // Generate PDF
         const pdfBuffer = await generateStudentReportPdf(item.examId, item.studentId);
 
-        await transporter.sendMail({
-          from,
+        await sendEmail({
           to: item.toEmail,
           subject: item.subject,
           text: `Dear Student,\n\nPlease find attached your mock exam score and topic performance report.\n\nBest regards,\nNPTEL Mock Exam Team`,

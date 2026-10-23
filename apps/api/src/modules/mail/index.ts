@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { db, schema } from '../../db/client.js';
 import { requireRole } from '../../lib/session.js';
@@ -19,6 +20,54 @@ export function createMailerTransport() {
     secure: port === 465,
     auth: user && pass ? { user, pass } : undefined
   });
+}
+
+export async function sendEmail(options: {
+  to: string;
+  subject: string;
+  text?: string;
+  html: string;
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+}): Promise<{ id?: string }> {
+  const from = process.env.RESEND_FROM || process.env.MAIL_FROM || 'onboarding@resend.dev';
+
+  if (process.env.RESEND_API_KEY) {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+      attachments: options.attachments?.map(a => ({
+        filename: a.filename,
+        content: a.content
+      }))
+    });
+
+    if (error) {
+      throw new Error(`Resend Error: ${error.message} (${error.name})`);
+    }
+
+    return { id: data?.id };
+  }
+
+  // Fallback to SMTP
+  const transporter = createMailerTransport();
+  const info = await transporter.sendMail({
+    from,
+    to: options.to,
+    subject: options.subject,
+    text: options.text,
+    html: options.html,
+    attachments: options.attachments?.map(a => ({
+      filename: a.filename,
+      content: a.content,
+      contentType: a.contentType
+    }))
+  });
+
+  return { id: info.messageId };
 }
 
 const mailRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -189,20 +238,16 @@ const mailRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     }
 
     try {
-      const transporter = createMailerTransport();
-      const from = process.env.MAIL_FROM || 'no-reply@nptel-mock.edu';
-
-      await transporter.sendMail({
-        from,
+      const result = await sendEmail({
         to,
         subject: 'Test Email - NPTEL Mock Exam Portal',
-        text: 'This is a test email confirming that SMTP is working properly.',
-        html: '<p>This is a test email confirming that SMTP is working properly.</p>'
+        text: 'This is a test email confirming that email sending is working properly.',
+        html: '<p>This is a test email confirming that email sending is working properly.</p>'
       });
 
-      return reply.send({ success: true, message: `Test mail successfully sent to ${to}` });
+      return reply.send({ success: true, message: `Test mail successfully sent to ${to}`, id: result.id });
     } catch (err: any) {
-      throw new AppError(500, 'SMTP_ERROR', `Failed to send test email: ${err.message}`);
+      throw new AppError(500, 'MAIL_ERROR', `Failed to send test email: ${err.message}`);
     }
   });
 };
