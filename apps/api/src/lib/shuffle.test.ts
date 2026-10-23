@@ -59,4 +59,51 @@ describe('Seeded Shuffle Algorithm', () => {
       expect(item.options.sort()).toEqual(['a', 'b', 'c', 'd']);
     }
   });
+
+  it('preserves group clusters: questions within the same group appear consecutively even when jumbled', () => {
+    // 3 groups with 5 questions each (like G01, G02, G03)
+    const pool = [
+      { id: 'g1-q1', groupId: 'G01' },
+      { id: 'g1-q2', groupId: 'G01' },
+      { id: 'g1-q3', groupId: 'G01' },
+      { id: 'g1-q4', groupId: 'G01' },
+      { id: 'g1-q5', groupId: 'G01' },
+      { id: 'g2-q1', groupId: 'G02' },
+      { id: 'g2-q2', groupId: 'G02' },
+      { id: 'g2-q3', groupId: 'G02' },
+      { id: 'g2-q4', groupId: 'G02' },
+      { id: 'g2-q5', groupId: 'G02' },
+      { id: 'g3-q1', groupId: 'G03' },
+      { id: 'g3-q2', groupId: 'G03' },
+      { id: 'g3-q3', groupId: 'G03' },
+      { id: 'g3-q4', groupId: 'G03' },
+      { id: 'g3-q5', groupId: 'G03' }
+    ];
+
+    // Test across 10 different student seeds
+    for (let s = 1; s <= 10; s++) {
+      const res = generateQuestionOrder({
+        examId: 'exam-group-test',
+        studentId: `student-${s}`,
+        poolQuestions: pool,
+        questionsPerStudent: 15,
+        shuffleQuestions: true
+      });
+
+      const orderIds = res.questionOrder.map(q => q.qid);
+      expect(orderIds.length).toBe(15);
+
+      // Verify each group appears in a continuous 5-question block
+      for (const gid of ['g1', 'g2', 'g3']) {
+        const indices = orderIds
+          .map((id, idx) => (id.startsWith(gid) ? idx : -1))
+          .filter(idx => idx !== -1);
+        expect(indices.length).toBe(5);
+        // Verify all 5 indices are contiguous (e.g. 0,1,2,3,4 or 5,6,7,8,9 or 10,11,12,13,14)
+        for (let i = 1; i < indices.length; i++) {
+          expect(indices[i]).toBe(indices[i - 1] + 1);
+        }
+      }
+    }
+  });
 });

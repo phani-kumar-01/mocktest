@@ -41,17 +41,25 @@ export interface QuestionOrderItem {
   options: string[]; // e.g. ['c', 'a', 'd', 'b']
 }
 
+export interface QuestionPoolItem {
+  id: string;
+  groupId?: string | null;
+}
+
 export interface GenerateOrderOptions {
   examId: string;
   studentId: string;
-  poolQuestionIds: string[];
+  poolQuestionIds?: string[];
+  poolQuestions?: (string | QuestionPoolItem)[];
   questionsPerStudent: number;
   shuffleQuestions?: boolean;
   shuffleOptions?: boolean;
 }
 
 /**
- * Generate deterministic question order and option order for a student's attempt
+ * Generate deterministic question order and option order for a student's attempt.
+ * Preserves group clusters: questions belonging to the same group stay together
+ * even when the exam question order is shuffled.
  */
 export function generateQuestionOrder(opts: GenerateOrderOptions): {
   seed: number;
@@ -61,24 +69,53 @@ export function generateQuestionOrder(opts: GenerateOrderOptions): {
   const seed = hashStringToSeed(seedStr);
   const prng = createMulberry32(seed);
 
-  let pool = [...opts.poolQuestionIds];
-  
-  if (pool.length > opts.questionsPerStudent) {
-    pool = shuffleArray(pool, prng);
-    pool = pool.slice(0, opts.questionsPerStudent);
+  // Normalize input into items with id and optional groupId
+  let items: QuestionPoolItem[] = [];
+  if (opts.poolQuestions && opts.poolQuestions.length > 0) {
+    items = opts.poolQuestions.map(q => (typeof q === 'string' ? { id: q } : q));
+  } else if (opts.poolQuestionIds) {
+    items = opts.poolQuestionIds.map(id => ({ id }));
   }
 
+  // Group items by groupId if present; standalone questions form individual clusters
+  const clusterMap = new Map<string, QuestionPoolItem[]>();
+  const clusterOrder: string[] = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const key =
+      item.groupId && item.groupId.trim() !== ''
+        ? `group:${item.groupId.trim()}`
+        : `item:${item.id || i}`;
+
+    if (!clusterMap.has(key)) {
+      clusterMap.set(key, []);
+      clusterOrder.push(key);
+    }
+    clusterMap.get(key)!.push(item);
+  }
+
+  let clusters = clusterOrder.map(k => clusterMap.get(k)!);
+
+  // If shuffleQuestions is true, shuffle the clusters
   if (opts.shuffleQuestions !== false) {
-    pool = shuffleArray(pool, prng);
+    clusters = shuffleArray(clusters, prng);
+  }
+
+  // Flatten the clusters back: questions in each group stay consecutively grouped
+  let flattened = clusters.flat();
+
+  if (flattened.length > opts.questionsPerStudent) {
+    flattened = flattened.slice(0, opts.questionsPerStudent);
   }
 
   const standardOptions = ['a', 'b', 'c', 'd'];
-  const questionOrder: QuestionOrderItem[] = pool.map(qid => {
+  const questionOrder: QuestionOrderItem[] = flattened.map(item => {
     let options = [...standardOptions];
     if (opts.shuffleOptions !== false) {
       options = shuffleArray(options, prng);
     }
-    return { qid, options };
+    return { qid: item.id, options };
   });
 
   return { seed, questionOrder };

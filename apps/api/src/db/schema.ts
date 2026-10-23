@@ -65,6 +65,10 @@ export const questions = pgTable('questions', {
   importBatchId: uuid('import_batch_id').references(() => importBatches.id),
   topic: text('topic').notNull(),
   subtopic: text('subtopic'),
+  groupId: text('group_id'),
+  paragraph: text('paragraph'),
+  concept: text('concept'),
+  setName: text('set_name'),
   bodyMd: text('body_md').notNull(),
   codeSnippet: text('code_snippet'),
   codeLang: text('code_lang').default('python'),
@@ -79,7 +83,8 @@ export const questions = pgTable('questions', {
   active: boolean('active').default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow()
 }, (table) => ({
-  subjectTopicIdx: index('questions_subject_topic_idx').on(table.subjectId, table.topic)
+  subjectTopicIdx: index('questions_subject_topic_idx').on(table.subjectId, table.topic),
+  groupIdx: index('questions_group_idx').on(table.groupId)
 }));
 
 export const exams = pgTable('exams', {

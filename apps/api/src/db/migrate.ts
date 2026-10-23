@@ -51,6 +51,10 @@ CREATE TABLE IF NOT EXISTS questions (
   import_batch_id uuid REFERENCES import_batches(id),
   topic text NOT NULL,
   subtopic text,
+  group_id text,
+  paragraph text,
+  concept text,
+  set_name text,
   body_md text NOT NULL,
   code_snippet text,
   code_lang text DEFAULT 'python',
@@ -66,6 +70,7 @@ CREATE TABLE IF NOT EXISTS questions (
   created_at timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS questions_subject_topic_idx ON questions (subject_id, topic);
+CREATE INDEX IF NOT EXISTS questions_group_idx ON questions (group_id);
 
 CREATE TABLE IF NOT EXISTS exams (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -167,6 +172,12 @@ CREATE TABLE IF NOT EXISTS audit_log (
   id bigserial PRIMARY KEY,
   actor text, action text, details jsonb, at timestamptz DEFAULT now()
 );
+
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS group_id text;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS paragraph text;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS concept text;
+ALTER TABLE questions ADD COLUMN IF NOT EXISTS set_name text;
+CREATE INDEX IF NOT EXISTS questions_group_idx ON questions (group_id);
 `;
 
 export async function migrate() {

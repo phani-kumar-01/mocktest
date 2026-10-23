@@ -163,22 +163,26 @@ const studentExamRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =
       throw new AppError(403, 'ENTRY_DENIED', entry.reason || 'Cannot enter exam at this time');
     }
 
-    // Fetch exam pool
-    const poolRows = await db.select({ questionId: schema.examQuestions.questionId })
+    // Fetch exam pool with group_id for group-aware clustering
+    const poolRows = await db.select({
+      questionId: schema.examQuestions.questionId,
+      groupId: schema.questions.groupId
+    })
       .from(schema.examQuestions)
+      .innerJoin(schema.questions, eq(schema.examQuestions.questionId, schema.questions.id))
       .where(eq(schema.examQuestions.examId, examId));
 
     if (poolRows.length === 0) {
       throw new AppError(400, 'NO_QUESTIONS', 'Exam question pool is empty');
     }
 
-    const poolQuestionIds = poolRows.map(p => p.questionId);
+    const poolQuestions = poolRows.map(p => ({ id: p.questionId, groupId: p.groupId }));
 
-    // Seeded shuffle for question & option order
+    // Seeded shuffle for question & option order (preserves group clusters)
     const { seed, questionOrder } = generateQuestionOrder({
       examId,
       studentId: student.id,
-      poolQuestionIds,
+      poolQuestions,
       questionsPerStudent: exam.questionsPerStudent,
       shuffleQuestions: exam.shuffleQuestions !== false,
       shuffleOptions: exam.shuffleOptions !== false
