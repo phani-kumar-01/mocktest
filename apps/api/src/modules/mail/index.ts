@@ -19,8 +19,8 @@ export function createMailerTransport() {
     });
   }
 
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const host = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : undefined;
 
@@ -58,7 +58,26 @@ export async function sendEmail(options: {
     return { id: info.messageId };
   }
 
-  // 2. If Resend is configured, use Resend
+  // 2. If Brevo / Custom SMTP credentials provided, prioritize SMTP
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    const transporter = createMailerTransport();
+    const from = process.env.MAIL_FROM || 'elite@sasi.ac.in';
+    const info = await transporter.sendMail({
+      from,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+      attachments: options.attachments?.map(a => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType
+      }))
+    });
+    return { id: info.messageId };
+  }
+
+  // 3. If Resend is configured, use Resend
   if (process.env.RESEND_API_KEY) {
     const from = process.env.RESEND_FROM || process.env.MAIL_FROM || 'onboarding@resend.dev';
     const resend = new Resend(process.env.RESEND_API_KEY);
@@ -81,7 +100,7 @@ export async function sendEmail(options: {
     return { id: data?.id };
   }
 
-  // 3. Fallback to standard SMTP
+  // 4. Fallback to default localhost SMTP
   const transporter = createMailerTransport();
   const from = process.env.MAIL_FROM || 'no-reply@nptel-mock.edu';
   const info = await transporter.sendMail({
