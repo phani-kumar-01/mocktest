@@ -9,10 +9,20 @@ import { generateStudentReportPdf } from './pdf.js';
 import { MailStatusResponse } from '@nptel/shared';
 
 export function createMailerTransport() {
-  const host = process.env.SMTP_HOST || 'localhost';
-  const port = parseInt(process.env.SMTP_PORT || '1025', 10);
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD.replace(/\s+/g, '')
+      }
+    });
+  }
+
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const pass = process.env.SMTP_PASS ? process.env.SMTP_PASS.replace(/\s+/g, '') : undefined;
 
   return nodemailer.createTransport({
     host,
@@ -29,9 +39,28 @@ export async function sendEmail(options: {
   html: string;
   attachments?: { filename: string; content: Buffer; contentType?: string }[];
 }): Promise<{ id?: string }> {
-  const from = process.env.RESEND_FROM || process.env.MAIL_FROM || 'onboarding@resend.dev';
+  // 1. If Gmail App credentials provided, prioritize Gmail
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    const transporter = createMailerTransport();
+    const from = process.env.MAIL_FROM || process.env.GMAIL_USER;
+    const info = await transporter.sendMail({
+      from,
+      to: options.to,
+      subject: options.subject,
+      text: options.text,
+      html: options.html,
+      attachments: options.attachments?.map(a => ({
+        filename: a.filename,
+        content: a.content,
+        contentType: a.contentType
+      }))
+    });
+    return { id: info.messageId };
+  }
 
+  // 2. If Resend is configured, use Resend
   if (process.env.RESEND_API_KEY) {
+    const from = process.env.RESEND_FROM || process.env.MAIL_FROM || 'onboarding@resend.dev';
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { data, error } = await resend.emails.send({
       from,
@@ -52,8 +81,9 @@ export async function sendEmail(options: {
     return { id: data?.id };
   }
 
-  // Fallback to SMTP
+  // 3. Fallback to standard SMTP
   const transporter = createMailerTransport();
+  const from = process.env.MAIL_FROM || 'no-reply@nptel-mock.edu';
   const info = await transporter.sendMail({
     from,
     to: options.to,
